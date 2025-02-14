@@ -100,7 +100,7 @@ class StickyNote:
         if self.is_already_modified():
             messagebox.showwarning("File changed", f"Something changed of {file_name}")
         self.save_note(False)  # Save the note
-        self.root.after(5000, self.auto_save)
+        self.root.after(self.auto_save_interval, self.auto_save)
 
     def is_already_modified(self):
         file_name = self.file_name_entry.get().strip()
@@ -167,7 +167,7 @@ class StickyNote:
 
         self.root.attributes("-topmost", True)
 
-        self.root.after(5000, self.auto_save)  # Call auto_save function every 5000 ms (5 seconds)
+        self.root.after(self.auto_save_interval, self.auto_save)  # Call auto_save function every n ms
 
         # Start the GUI loop
         self.root.mainloop()

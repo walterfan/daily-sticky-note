@@ -22,7 +22,22 @@ templates:
 
 
     ## Do, Check and Act
-    > execute plan and record result and issues, then check and act
+    > execute plan, record result and issues, then check and act
 
     ## Summary and notes
     > what I have done and learned today?
+
+  blog: |
+    # {{ title }}
+    ## Daily comment on 1 social hot news
+    ...
+    ## Daily recommendation of 1 GitHub hot project
+    ...
+    ## Daily recommendation of 1 best practice in software development and AI applications
+    ...
+    ## Daily practice of 1 LeetCode algorithm question, implemented in Java and Go, with a detailed explanation
+    ...
+    ## Daily practice of 1 classic design pattern, implemented in Java and Go, with a detailed explanation
+    ...
+    ## Daily recitation of 10 English quotes
+    ...
