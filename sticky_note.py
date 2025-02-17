@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import tkinter as tk
+from tkinter import ttk
 from tkinter import messagebox
 import os
 import datetime
@@ -43,17 +44,19 @@ class YamlConfig:
         return dump(self._config_data, Dumper=Dumper)
 
 class StickyNote:
-    def __init__(self, yaml_config):
+    def __init__(self, yaml_config, template_name):
         self.config = yaml_config
-        self.title = self.config.get_config_item("default", "title")
-        self.note_text = self.config .get_config_item("templates", "pdca")
+        self.title = self.config.get_config_item("config", "title")
+        self.note_text = self.config .get_config_item("templates", template_name)
 
         today = datetime.date.today()
         self.datestr = today.strftime("%Y-%m-%d")
-        self.default_folder = os.getenv("NOTE_FOLDER", self.config.get_config_item("default", "folder"))
+        self.default_folder = os.getenv("NOTE_FOLDER", self.config.get_config_item("config", "folder"))
         self.default_filename = f"{self.default_folder}/{self.datestr}.md"
-        self.auto_save_interval = int(self.config.get_config_item("default", "save_interval_ms"))
+        self.auto_save_interval = int(self.config.get_config_item("config", "save_interval_ms"))
         self.last_modified_time = None
+        self.template_name = template_name
+        self.command_dict = {}
     # Function to save a sticky note to a custom file
     def save_note(self, prompt=True):
         note_text = self.text_area.get("1.0", tk.END).strip()
@@ -113,9 +116,34 @@ class StickyNote:
                 return False
         return False
 
+    def execute_command(self):
+        selected_command = self.command_var.get()
+        print(f"Executing command: {selected_command}")
+        if selected_command in self.command_dict:
+            os.system(self.command_dict[selected_command])
+        else:
+            messagebox.showwarning("Invalid Command", f"Command {selected_command} not found.")
+
+    def load_commands(self):
+        commands = self.config.get_config_item("config", "commands")
+        result = []
+        for command in commands:
+            self.command_dict[command.get("name")] = command.get("shell")
+            result.append(command.get("name"))
+        return result
+
+    def get_default_command(self):
+        command = self.config.get_config_item("config", "default_command")
+        self.command_dict[command.get("name")] = command.get("shell")
+        return command.get("name")
+
+    def quit_app(self):
+        self.root.destroy()
+
     def initialize(self):
         # Create the main window
         self.root = tk.Tk()
+        self.root.attributes('-alpha', 0.9)  # 设置窗口透明度
         self.root.title(self.title)
 
         self.root.grid_rowconfigure(2, weight=1)
@@ -142,7 +170,7 @@ class StickyNote:
         self.file_name_entry.insert(tk.END, self.default_filename)
 
         # Text area to write notes (adjustable size)
-        self.text_area = tk.Text(self.root, height=15, width=60, wrap=tk.WORD)
+        self.text_area = tk.Text(self.root, height=15, width=60, wrap=tk.WORD, bg='#f0f0f0', fg='#333333', font=('Arial', 14))
         self.scrollbar = tk.Scrollbar(self.root, command=self.text_area.yview)
         self.text_area.config(yscrollcommand=self.scrollbar.set)
         self.scrollbar.grid(row=2, column=1, sticky="ns")
@@ -165,9 +193,20 @@ class StickyNote:
         load_button = tk.Button(self.button_frame, text="Load Note", command=self.load_note)
         load_button.grid(row=0, column=1, padx=5)
 
+        self.command_var = tk.StringVar(self.root, self.get_default_command())
+        self.command_choices = self.load_commands()
+        command_box = ttk.Combobox(self.button_frame, textvariable=self.command_var, values=self.command_choices, width=8)
+        command_box.grid(row=0, column=2, padx=5)
+
+        execute_button = tk.Button(self.button_frame, text="Execute", command=self.execute_command)
+        execute_button.grid(row=0, column=3, padx=5)
+
+        quit_button = tk.Button(self.button_frame, text="Quit", command=self.quit_app)
+        quit_button.grid(row=0, column=4, padx=5)
         self.root.attributes("-topmost", True)
 
         self.root.after(self.auto_save_interval, self.auto_save)  # Call auto_save function every n ms
+
 
         # Start the GUI loop
         self.root.mainloop()
@@ -176,12 +215,14 @@ class StickyNote:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Daily Sticky Note Application")
-    parser.add_argument('-f', '--file', type=str, default=os.path.join(CURRENT_DIR, "sticky_note.yaml"), help='Path to the YAML configuration file')
+    parser.add_argument('-f', '--file', action='store', dest='file', default=os.path.join(CURRENT_DIR, "sticky_note.yaml"), help='Path to the YAML configuration file')
+    parser.add_argument('-t', '--template', action='store', dest='template', default="pdca", help='specify template name')
+
     args = parser.parse_args()
 
     yaml_file = args.file
     yaml_config = YamlConfig(yaml_file)
 
-    app = StickyNote(yaml_config)
+    app = StickyNote(yaml_config, args.template)
     app.initialize()
 

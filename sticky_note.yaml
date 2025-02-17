@@ -1,11 +1,16 @@
-default:
-  folder: /Users/walter.fan/workspace/walter/wfblog/diary
+config:
+  folder: ~/workspace/walter/wfblog/diary
   title: "sticky note v1.0 - walter"
   save_interval_ms: 5000
+  default_command:
+    name: "list files"
+    shell: ls -la .
+  commands:
+    - name: "disk space"
+      shell: df -h
+
 templates:
   pdca: |
-    # {{ title }}
-
     ## Inbox
     > record anything in your mind
 
@@ -41,3 +46,26 @@ templates:
     ...
     ## Daily recitation of 10 English quotes
     ...
+
+  meeting_notes: |
+    # 会议记录 - {{ title }}
+    **日期：** {{ date }}
+    **时间：** {{ time }}
+    **地点：** 
+    **与会者：** 
+    ## 议程
+    1. 
+    2. 
+    3. 
+    ## 讨论内容
+    - 
+    - 
+    - 
+    ## 结论
+    - 
+    - 
+    - 
+    ## 待办事项
+    - [ ] 
+    - [ ] 
+    - [ ]
