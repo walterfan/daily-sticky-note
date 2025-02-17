@@ -1,5 +1,5 @@
 config:
-  folder: ~/workspace/walter/wfblog/diary
+  folder: /opt/diary
   title: "sticky note v1.0 - walter"
   save_interval_ms: 5000
   default_command:
