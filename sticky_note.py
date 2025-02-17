@@ -170,7 +170,7 @@ class StickyNote:
         self.file_name_entry.insert(tk.END, self.default_filename)
 
         # Text area to write notes (adjustable size)
-        self.text_area = tk.Text(self.root, height=15, width=60, wrap=tk.WORD, bg='#f0f0f0', fg='#333333', font=('Arial', 14))
+        self.text_area = tk.Text(self.root, height=15, width=60, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
         self.scrollbar = tk.Scrollbar(self.root, command=self.text_area.yview)
         self.text_area.config(yscrollcommand=self.scrollbar.set)
         self.scrollbar.grid(row=2, column=1, sticky="ns")
@@ -207,7 +207,7 @@ class StickyNote:
 
         self.root.after(self.auto_save_interval, self.auto_save)  # Call auto_save function every n ms
 
-
+        self.root.configure(bg='#9acd32')
         # Start the GUI loop
         self.root.mainloop()
 
