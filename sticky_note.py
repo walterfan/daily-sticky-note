@@ -101,8 +101,11 @@ class StickyNote:
     def auto_save(self):
         file_name = self.file_name_entry.get().strip()
         if self.is_already_modified():
-            messagebox.showwarning("File changed", f"Something changed of {file_name}")
-        self.save_note(False)  # Save the note
+            response = messagebox.askyesno("File changed", f"Something changed of {file_name}, overwrite?")
+            if response:
+                self.save_note(True)
+        else:
+            self.save_note(False)  # Save the note
         self.root.after(self.auto_save_interval, self.auto_save)
 
     def is_already_modified(self):

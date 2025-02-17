@@ -19,15 +19,12 @@ templates:
     * [ ] top 2
     * [ ] top 3
 
-    ## Plan
+    ## PDCA
+    > plan, do, record result and issues, then check and adjust/act
 
     | # | Issue | Priority | Duration | Deadline | ScheduleTime | StartTime | EndTime |
     |---|---|---|---|---|---|---|---|
     | 1 | issue 1 | A  | 3H  | 12:00 |   |   |   |
-
-
-    ## Do, Check and Act
-    > execute plan, record result and issues, then check and act
 
     ## Summary and notes
     > what I have done and learned today?
