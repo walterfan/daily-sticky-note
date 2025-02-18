@@ -47,37 +47,39 @@ class StickyNote:
     def __init__(self, yaml_config, template_name):
         self.config = yaml_config
         self.title = self.config.get_config_item("config", "title")
-        self.note_text = self.config .get_config_item("templates", template_name)
+        self.note_text = self.config.get_config_item("templates", template_name)
 
         today = datetime.date.today()
         self.datestr = today.strftime("%Y-%m-%d")
-        self.default_folder = os.getenv("NOTE_FOLDER", self.config.get_config_item("config", "folder"))
-        self.default_filename = f"{self.default_folder}/{self.datestr}.md"
+        self.folder = os.getenv("NOTE_FOLDER", self.config.get_config_item("config", "folder"))
+        self.default_filename = f"diary_{self.datestr}.md"
         self.auto_save_interval = int(self.config.get_config_item("config", "save_interval_ms"))
         self.last_modified_time = None
         self.template_name = template_name
+        self.commands = self.config.get_config_section("commands")
         self.command_dict = {}
+        self.templates = self.config.get_config_section("templates")
     # Function to save a sticky note to a custom file
     def save_note(self, prompt=True):
         note_text = self.text_area.get("1.0", tk.END).strip()
-        title = self.title_entry.get().strip()
-        file_name = self.file_name_entry.get().strip()
 
+        file_name = self.file_name_entry.get().strip()
+        file_path = f"{self.folder}/{file_name}"
         if note_text == "":
             messagebox.showwarning("Empty Note", "Cannot save an empty note!")
             return
 
-        if title == "" or file_name == "":
-            messagebox.showwarning("Missing Information", "Please enter both a title and file name!")
+        if file_name == "":
+            messagebox.showwarning("Missing Information", "Please enter file name!")
             return
 
         # Save the note to the specified file name
-        with open(f"{file_name}", "w") as file:
-            file.write(f"Title: {title}\n\n{note_text}")
+        with open(file_path, "w") as file:
+            file.write(note_text)
         if prompt:
             messagebox.showinfo("Saved", f"saved successfully of {file_name}")
 
-        self.last_modified_time = os.path.getmtime(file_name)
+        self.last_modified_time = os.path.getmtime(file_path)
 
     # Function to load a sticky note from a file
     def load_note(self):
@@ -85,16 +87,13 @@ class StickyNote:
         if file_name == "":
             messagebox.showwarning("Missing File Name", "Please enter a file name to load!")
             return
-
-        if os.path.exists(f"{file_name}"):
-            with open(f"{file_name}", "r") as file:
+        file_path = f"{self.folder}/{file_name}"
+        if os.path.exists(file_path):
+            with open(file_path, "r") as file:
                 self.note_text = file.read()
-            # Extract title from the first line
-            title = self.note_text.split('\n')[0].replace("Title: ", "").strip()
-            self.title_entry.delete(0, tk.END)
-            self.title_entry.insert(tk.END, title)
+
             self.text_area.delete("1.0", tk.END)
-            self.text_area.insert(tk.END, "\n".join(self.note_text.split('\n')[2:]))  # Skip "Title: ..." line
+            self.text_area.insert(tk.END, "\n".join(self.note_text.split('\n')))
         else:
             messagebox.showwarning("File Not Found", f"No note found with the name {file_name}")
 
@@ -110,8 +109,9 @@ class StickyNote:
 
     def is_already_modified(self):
         file_name = self.file_name_entry.get().strip()
+        file_path = f"{self.folder}/{file_name}"
         if os.path.exists(file_name):
-            current_modified_time = os.path.getmtime(file_name)
+            current_modified_time = os.path.getmtime(file_path)
             if self.last_modified_time and current_modified_time > self.last_modified_time:
                 self.last_modified_time = current_modified_time
                 return True
@@ -143,6 +143,14 @@ class StickyNote:
     def quit_app(self):
         self.root.destroy()
 
+    def on_template_select(self, event):
+        selected_template = self.template_var.get()
+        response = messagebox.askyesno("Load template", f"Will change current note, overwrite?")
+        if response:
+            self.note_text = self.templates.get(selected_template, "")
+            self.text_area.delete("1.0", tk.END)
+            self.text_area.insert(tk.END, f"# {self.datestr}\n\n{self.note_text}")
+
     def initialize(self):
         # Create the main window
         self.root = tk.Tk()
@@ -152,23 +160,26 @@ class StickyNote:
         self.root.grid_rowconfigure(2, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
 
-        # Title input field (one line)
-        self.title_frame = tk.Frame(self.root)
-        self.title_frame.grid(row=0, column=0, padx=10, pady=2, sticky="ew")
+        # Template selection combobox
+        self.template_frame = tk.Frame(self.root)
+        self.template_frame.grid(row=0, column=0, padx=10, pady=2, sticky="ew")
 
-        self.title_label = tk.Label(self.title_frame, text="Title:")
-        self.title_label.grid(row=0, column=0, padx=5, pady=2, sticky="w")
-        self.title_entry = tk.Entry(self.title_frame, width=40)
-        self.title_entry.grid(row=0, column=1, padx=5, pady=2)
-        self.title_entry.insert(tk.END, f"{self.datestr} note")
+        self.template_label = tk.Label(self.template_frame, text="Note Template: ")
+        self.template_label.grid(row=0, column=0, padx=5, pady=2, sticky="w")
+
+        self.template_var = tk.StringVar(self.root, self.template_name)
+        self.template_choices = list(self.templates.keys())
+        template_box = ttk.Combobox(self.template_frame, textvariable=self.template_var, values=self.template_choices, width=30)
+        template_box.grid(row=0, column=1, padx=5)
+        template_box.bind("<<ComboboxSelected>>", self.on_template_select)
 
         # File name input field (one line)
         self.file_name_frame = tk.Frame(self.root)
         self.file_name_frame.grid(row=1, column=0, padx=10, pady=2, sticky="ew")
 
-        self.file_name_label = tk.Label(self.file_name_frame, text="File: ")
+        self.file_name_label = tk.Label(self.file_name_frame, text="Note File:     ")
         self.file_name_label.grid(row=0, column=0, padx=5, pady=2, sticky="w")
-        self.file_name_entry = tk.Entry(self.file_name_frame, width=40)
+        self.file_name_entry = tk.Entry(self.file_name_frame, width=30)
         self.file_name_entry.grid(row=0, column=1, padx=5, pady=2)
         self.file_name_entry.insert(tk.END, self.default_filename)
 
@@ -181,7 +192,7 @@ class StickyNote:
         self.text_area.insert(tk.END, f"# {self.datestr}")
         self.text_area.focus_set()
 
-        if os.path.exists(self.default_filename):
+        if os.path.exists(f"{self.folder}/{self.default_filename}"):
             self.load_note()
         else:
             self.text_area.insert(tk.END, f"\n\n{self.note_text}")
