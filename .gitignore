@@ -2,10 +2,11 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+walter_note.yaml
+walter_note.sh
 # C extensions
 *.so
-
+nohup.out
 # Distribution / packaging
 .Python
 build/
