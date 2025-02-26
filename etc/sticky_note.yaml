@@ -1,7 +1,10 @@
 config:
-  folder: /opt/diary
+  folder:
   title: "sticky note v1.0 - walter"
   save_interval_ms: 5000
+  default_tomato_min: 45
+  long_break_min: 15
+  short_break_min: 5
   default_command: "list files"
   frame_size: "560x360"
   commands:
@@ -11,7 +14,24 @@ config:
     - name: "list files"
       shell: ls -l -a .
       new_window: true
+  tasks: |
+    title, priority, difficulty, duration, deadline
+    write design, 1, 1, 60, {{ today }}
+    write code, 1, 2, 120, {{ today }}
+    self testing, 2, 2, 120, {{ tomorrow }}
+    review meeting, 2, 2, 60, {{ today }}
+    write my blog, 3, 2, 60, {{ today }}
+    learn english, 2, 2, 30, {{ today }}
+    physical exercise, 2, 2, 60, {{ today }}
+    check email and IM, 1, 2, 30, {{ today }}
+    learn domain knowledge, 2, 2, 120, {{ tomorrow }}
 
+llm:
+  llm_base_url: https://api.deepseek.com
+  llm_model: deepseek-chat
+  llm_stream: false
+  llm_max_token: 4096
+  llm_temperature: 1.0
 templates:
   diary: |
     ## Inbox
@@ -25,8 +45,7 @@ templates:
     ## PDCA
     > plan, do, record result and issues, then check and adjust/act
 
-    Issue,Priority,Duration,Deadline,ScheduleTime,StartTime,EndTime
-    issue 1,A,3H,,,
+    {{ content }}
 
     ## Summary and notes
     > what I have done and learned today?

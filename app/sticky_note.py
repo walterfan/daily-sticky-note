@@ -4,12 +4,16 @@ import platform
 import subprocess
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-import os
+import os, sys
 import datetime
 import argparse
+import asyncio
 import time
+from jinja2 import Template
 from yaml_config import YamlConfig
-from llm_service import get_llm_service_instance
+from common_util import task_csv_to_json, extract_markdown_text
+from llm_service import get_llm_service_instance, LlmConfig, LlmService
+from loguru import logger
 import dotenv
 dotenv.load_dotenv()
 
@@ -18,18 +22,43 @@ DEFAULT_MINS = 25
 TIME_FORMAT = "%H:%M:%S"
 DATE_FORMAT = "%Y%m%d"
 
+def get_resource_path(relative_path):
+    if getattr(sys, 'frozen', False):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.dirname(CURRENT_DIR)
+    logger.info(f"load resource from {base_path}")
+    return os.path.join(base_path, relative_path)
+
+
+def read_llm_config(config: YamlConfig):
+    base_url = config.get_config_item_2("llm", "base_url") or os.getenv("LLM_BASE_URL")
+    api_key = config.get_config_item_2("llm", "api_key") or os.getenv("LLM_API_KEY")
+    model = config.get_config_item_2("llm", "model") or os.getenv("LLM_MODEL")
+    stream = config.get_config_item_2("llm", "stream") or os.getenv("LLM_STREAM")
+    return LlmConfig(base_url=base_url, api_key=api_key, model=model, stream=stream)
+
 class StickyNote:
-    def __init__(self, config_file, template_name, prompt_config):
+    def __init__(self, config_file, prompt_config_file, template_name):
         self._config = YamlConfig(config_file)
         self._title = self._config.get_config_item_2("config", "title")
         self._frame_size = self._config.get_config_item_2("config", "frame_size")
         self._started = False
+        self._tomato_min = int(self._config.get_config_item_2("config", "default_tomato_min"))
+        self._long_break_min = int(self._config.get_config_item_2("config", "long_break_min"))
+        self._short_break_min = int(self._config.get_config_item_2("config", "short_break_min"))
         self._tomato_count = 0
-        self._llm_service = get_llm_service_instance(prompt_config)
+        self._llm_config = read_llm_config(self._config)
+
+        if self._llm_config.api_key:
+            self._llm_service = get_llm_service_instance(self._llm_config, prompt_config_file)
+        self._folder = self._config.get_config_item_2("config", "folder")
+        if not self._folder:
+            self._folder = os.getcwd()
 
         today = datetime.date.today()
         self.datestr = today.strftime(DATE_FORMAT)
-        self.folder = self._config.get_config_item_2("config", "folder")
+
         self.default_filename = f"diary_{self.datestr}.md"
         self.auto_save_interval = int(self._config.get_config_item_2("config", "save_interval_ms"))
         self.last_modified_time = None
@@ -38,6 +67,7 @@ class StickyNote:
         self._templates = self._config.get_config_item("templates")
         self._template_name = template_name
         self._note_text = self._templates.get(self._template_name, "")
+        logger.info(f"template={self._template_name}, prompt_config_file={prompt_config_file}")
 
     def adjust_location(self):
         # Get the screen width and height
@@ -60,7 +90,7 @@ class StickyNote:
         note_text = self.text_area.get("1.0", tk.END).strip()
 
         file_name = self.file_name_entry.get().strip()
-        file_path = f"{self.folder}/{file_name}"
+        file_path = f"{self._folder}/{file_name}"
         if note_text == "":
             messagebox.showwarning("Empty Note", "Cannot save an empty note!")
             return
@@ -85,7 +115,7 @@ class StickyNote:
             ("All files", "*.*")))
         if file_path:
             file_name = file_path.split('/')[-1]
-            self.folder = file_path.rsplit('/', 1)[0]
+            self._folder = file_path.rsplit('/', 1)[0]
             self.file_name_entry.delete(0, tk.END)
             self.file_name_entry.insert(tk.END, file_name)
 
@@ -94,7 +124,7 @@ class StickyNote:
     # Function to load a sticky note from a file
     def load_note(self):
         file_name = self.file_name_entry.get().strip()
-        file_path = f"{self.folder}/{file_name}"
+        file_path = f"{self._folder}/{file_name}"
         if file_name == "":
             messagebox.showwarning("Missing File Name", "Please enter a file name to load!")
             return
@@ -105,7 +135,7 @@ class StickyNote:
                 #messagebox.showinfo("Saved", f"loaded from {file_path}")
 
             self.text_area.delete("1.0", tk.END)
-            self.text_area.insert(tk.END, "\n".join(self._note_text.split('\n')))
+            self.text_area.insert(tk.END, self._note_text)
         else:
             messagebox.showwarning("File Not Found", f"No note found with the name {file_name}")
 
@@ -121,7 +151,7 @@ class StickyNote:
 
     def is_already_modified(self):
         file_name = self.file_name_entry.get().strip()
-        file_path = f"{self.folder}/{file_name}"
+        file_path = f"{self._folder}/{file_name}"
         if os.path.exists(file_name):
             current_modified_time = os.path.getmtime(file_path)
             if self.last_modified_time and current_modified_time > self.last_modified_time:
@@ -135,25 +165,27 @@ class StickyNote:
         selected_command = self.command_var.get()
         if selected_command in self.command_dict:
             command = self.command_dict[selected_command]
+            command_shell = command.get("shell")
+            command_new_window = command.get("new_window")
             os_type = platform.system()
-            print(f"Executing command: {command} on {os_type}")
-            if command.get("new_window"):
+            logger.info(f"Executing command: {command} on {os_type}")
+            if command_new_window:
                 if os_type == 'Windows':
-                    subprocess.Popen(['start', 'cmd', '/k', command], shell=True)
+                    subprocess.Popen(['start', 'cmd', '/k', command_shell], shell=True)
                 elif os_type == 'Darwin':
-                    subprocess.Popen(['osascript', '-e', f'tell application "Terminal" to do script "{command}"'])
+                    subprocess.Popen(['osascript', '-e', f'tell application "Terminal" to do script "{command_shell}"'])
                 else:
-                    subprocess.Popen(["gnome-terminal", "--", "bash", "-c", f"{command}; exec bash"])
+                    subprocess.Popen(["gnome-terminal", "--", "bash", "-c", f"{command_shell}; exec bash"])
             else:
-                os.system(self.command_dict[selected_command])
+                os.system(command_shell)
         else:
-            messagebox.showwarning("Invalid Command", f"Command {selected_command} not found.")
+            messagebox.showwarning("Invalid Command", f"{selected_command} not found.")
 
     def load_commands(self):
         commands = self._config.get_config_item_2("config", "commands")
         result = []
         for command in commands:
-            self.command_dict[command.get("name")] = command.get("shell")
+            self.command_dict[command.get("name")] = command
             result.append(command.get("name"))
         return result
 
@@ -179,14 +211,14 @@ class StickyNote:
     def create_time_box(self, frame, label):
         return tk.Entry(frame, width=4,font=("Arial",18,""), justify='center', textvariable=label)
 
-    def set_time(self, hour=0, min=DEFAULT_MINS, sec=0):
+    def set_time(self, hour, min, sec=0):
         self._hour.set("{0:2d}".format(hour))
         self._minute.set("{0:2d}".format(min))
         self._second.set("{0:2d}".format(sec))
 
     def reset(self):
         self._started = False
-        self.set_time()
+        self.set_time(0, self._tomato_min, 0)
 
     def pause(self):
         self._started = False
@@ -211,23 +243,27 @@ class StickyNote:
 
             hours, mins, secs = self.get_hour_min_sec(left_seconds)
             self.set_time(hours, mins, secs)
+            if left_seconds >= 60:
+                self._hour_box.update()
+            self._minute_box.update()
+            self._second_box.update()
 
-            self._root.update()
             time.sleep(1)
 
             if (left_seconds == 0):
                 self._tomato_count += 1
                 response = messagebox.askyesnocancel('haha', "Have a rest at {} for {} tomatoes?".format( datetime.datetime.now().strftime(TIME_FORMAT),self._tomato_count))
                 if response:
-                    self.set_time(0, 5, 0)
-                    left_seconds = 300
+                    self.set_time(0, self._tomato_min, 0)
+                    left_seconds = self._short_break_min * 60
                 elif response == False:
-                    self.set_time(0, 25, 0)
-                    left_seconds = 1500
+                    self.set_time(0, self._tomato_min, 0)
+                    left_seconds = self._long_break_min * 60
                 else:
                     break
 
             left_seconds -= 1
+
 
     def show_aigc_dialog(self):
             # Create a new top-level window
@@ -249,8 +285,9 @@ class StickyNote:
             listbox = tk.Listbox(dialog, height=4)
             listbox.pack(pady=10)
 
-            # Example list items
-            items = ["Generate", "Proofread", "Polish", "Translate"]
+            prompt_templates = self._llm_service.get_prompt_templates()
+
+            items = sorted(prompt_templates.get_prompts())
             for item in items:
                 listbox.insert(tk.END, item)
 
@@ -265,8 +302,13 @@ class StickyNote:
                 if selected_index:
                     selected_item = listbox.get(selected_index)
                     hint_message = hint_entry.get()
-                    print(f"Selected item: {selected_item}, Hint message: {hint_message}")
-                    # You can add your AIGC logic here
+                    prompt = prompt_templates.get_prompt_tpl(selected_item)
+                    logger.info(f"Selected item: {selected_item}, Hint message: {hint_message}, Prompt: {prompt}")
+                    #  add your AIGC logic here
+                    if self._template_name == "diary" and selected_item == "arrange_calendar":
+                        logger.info("mkae schedule")
+                        asyncio.run(self.make_schedule())
+
                 dialog.destroy()
 
             def on_cancel():
@@ -279,6 +321,44 @@ class StickyNote:
             yes_button.pack(side=tk.LEFT, padx=5)
             cancel_button = tk.Button(button_frame, text="Cancel", command=on_cancel)
             cancel_button.pack(side=tk.LEFT, padx=5)
+
+    async def ask_llm(self, prompt_tpl, content):
+        data_dict = {
+            "content": content,
+        }
+        template = Template(prompt_tpl['user_prompt'])
+        rendered_str = template.render(data_dict)
+        #logger.info(rendered_str)
+        llm_result = self._llm_service.ask(prompt_tpl['system_prompt'], rendered_str)
+        logger.info(f"result={llm_result}")
+
+    async def make_schedule(self):
+        #, tasks, system_prompt, user_prompt
+        tasks = self._config.get_config_item_2("config", "tasks")
+        prompt = self._llm_service.get_prompt_templates().get_prompt_tpl('arrange_calendar')
+        today = datetime.datetime.now()
+        today_str = today.strftime('%Y-%m-%d')
+        tomorrow = today + datetime.timedelta(days = 1)
+        tomorrow_str = tomorrow.strftime('%Y-%m-%d')
+
+        data_dict = {
+            "title": f"schedule of {today_str}",
+            "today": today_str,
+            "tomorrow": tomorrow_str,
+            "tasks": task_csv_to_json(tasks)
+        }
+        template = Template(prompt['user_prompt'])
+        rendered_str = template.render(data_dict)
+        llm_result = await self._llm_service.ask(prompt['system_prompt'], rendered_str)
+
+        note_dict = {
+            "content": extract_markdown_text(llm_result)
+        }
+        note_template = Template(self._note_text)
+        new_text = note_template.render(note_dict)
+        logger.info(f"new_text={new_text}")
+        self.text_area.delete("1.0", tk.END)
+        self.text_area.insert(tk.END, new_text)
 
     def initialize(self):
         # Create the main window
@@ -310,16 +390,16 @@ class StickyNote:
         self._minute = tk.StringVar()
         self._second = tk.StringVar()
 
-        hour_box = self.create_time_box(self.template_frame, self._hour)
-        hour_box.grid(row=0, column=2, padx=5)
+        self._hour_box = self.create_time_box(self.template_frame, self._hour)
+        self._hour_box.grid(row=0, column=2, padx=5)
 
-        minute_box = self.create_time_box(self.template_frame, self._minute)
-        minute_box.grid(row=0, column=3, padx=5)
+        self._minute_box = self.create_time_box(self.template_frame, self._minute)
+        self._minute_box.grid(row=0, column=3, padx=5)
 
-        second_box = self.create_time_box(self.template_frame, self._second)
-        second_box.grid(row=0, column=4, padx=5)
+        self._second_box = self.create_time_box(self.template_frame, self._second)
+        self._second_box.grid(row=0, column=4, padx=5)
 
-        self.set_time()
+        self.set_time(0, self._tomato_min, 0)
 
         # row 1: File name input field (one line)
         self.file_name_frame = tk.Frame(self._root)
@@ -349,7 +429,7 @@ class StickyNote:
         self.text_area.insert(tk.END, f"# {self.datestr}")
         self.text_area.focus_set()
 
-        file_path = f"{self.folder}/{self.default_filename}"
+        file_path = f"{self._folder}/{self.default_filename}"
 
         if os.path.exists(file_path):
             self.load_note()
@@ -389,16 +469,20 @@ class StickyNote:
         # Start the GUI loop
         self._root.mainloop()
 
-        return self._root
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Daily Sticky Note Application")
-    parser.add_argument('-f', '--file', action='store', dest='file', default="./etc/sticky_note.yaml", help='Path to the YAML configuration file')
-    parser.add_argument('-t', '--template', action='store', dest='template', default="diary", help='specify template name')
-    parser.add_argument('-p', '--prompt_config', action='store', dest='prompt_config', default="./etc/prompt_template.yaml", help='specify template name')
+    parser.add_argument('-f', '--config_file', action='store', dest='config_file', help='Path to the YAML configuration file')
+    parser.add_argument('-p', '--prompt_file', action='store', dest='prompt_file', help='specify prompt template name')
+    parser.add_argument('-t', '--template_name', action='store', dest='template_name', default="diary", help='specify note template name')
 
     args = parser.parse_args()
 
-    app = StickyNote(args.file, args.template, args.prompt_config)
+    config_path = args.config_file or get_resource_path("etc/sticky_note.yaml")
+    prompt_file = args.prompt_file or get_resource_path("etc/prompt_template.yaml")
+
+    logger.info(f"Loading config from: {config_path}, {prompt_file}, {args.template_name}")
+
+    app = StickyNote(config_path, prompt_file, args.template_name)
     app.initialize()
+
 

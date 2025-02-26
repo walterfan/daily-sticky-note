@@ -2,6 +2,28 @@
 
 My sticky note app for daily work.
 
+## Prerequisites
+
+* python 3.10+
+* brew install upx  (optional)
+* brew install pyinstaller (optional)
+
+### install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+## configuration
+
+* change etc/sticky_note.yaml
+
+for the api key of LLM, you can set the environment variables as below
+
+```
+export LLM_API_KEY="xxx"
+```
+
 ## usage
 
 ```shell

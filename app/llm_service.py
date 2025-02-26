@@ -30,6 +30,9 @@ class PromptTemplates:
     def get_prompt_tpl(self, cmd):
         return self._prompt_config.get(cmd)
 
+    def get_prompts(self):
+        return self._prompt_config.keys()
+
 class LlmConfig:
     base_url: str
     api_key: str
@@ -61,6 +64,9 @@ class LlmService:
 
     def get_llm_client(self):
         return self._llm_client
+
+    def get_prompt_templates(self):
+        return self._prompt_templates
 
     def get_default_system_prompt(self):
         return self._prompt_templates.get_prompt_tpl("system_prompt")
@@ -96,20 +102,12 @@ class LlmService:
         response_json = json.loads(response)
         return response_json
 
-g_llm_config = None
+
 g_llm_service = None
 
-def get_llm_service_instance(prompt_config_file: str = None) -> LlmService:
-    global g_llm_config
+def get_llm_service_instance(llm_config: LlmConfig, prompt_config_file: str = None) -> LlmService:
     global g_llm_service
     if g_llm_service is None:
-        base_url=os.getenv("LLM_BASE_URL")
-        api_key=os.getenv("LLM_API_KEY")
-        model=os.getenv("LLM_MODEL")
-        stream=os.getenv("LLM_STREAM")
-
-        g_llm_config = LlmConfig(base_url=base_url, api_key=api_key, model=model, stream=stream)
-        g_llm_service = LlmService(g_llm_config, prompt_config_file)
-
+        g_llm_service = LlmService(llm_config, prompt_config_file)
     return g_llm_service
 
