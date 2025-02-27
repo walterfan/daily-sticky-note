@@ -270,8 +270,9 @@ class StickyNote:
             dialog = tk.Toplevel(self._root)
             dialog.title("AI for sticky note")
 
-            dialog_width = 300
-            dialog_height = 200
+
+            dialog_width = 600
+            dialog_height = 400
 
             screen_width = self._root.winfo_screenwidth()
             screen_height = self._root.winfo_screenheight()
@@ -281,33 +282,69 @@ class StickyNote:
 
             dialog.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
 
-            # Create a listbox
-            listbox = tk.Listbox(dialog, height=4)
-            listbox.pack(pady=10)
+            # Create a frame to hold the Listbox and Scrollbar
+            listbox_frame = tk.Frame(dialog)
+            listbox_frame.pack(pady=10)
+
+            # Create a Listbox
+            listbox = tk.Listbox(listbox_frame, height=10, width=60, bg='#9acd32', fg='#333333', font=('Arial', 14))
+            listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+            # Create a Scrollbar
+            scrollbar = tk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=listbox.yview)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+            # Configure the Listbox to use the Scrollbar
+            listbox.config(yscrollcommand=scrollbar.set)
 
             prompt_templates = self._llm_service.get_prompt_templates()
 
             items = sorted(prompt_templates.get_prompts())
             for item in items:
                 listbox.insert(tk.END, item)
+            listbox.selection_set(0)
 
             # Create an entry for hint message
             hint_label = tk.Label(dialog, text="Hint Message:")
             hint_label.pack()
-            hint_entry = tk.Entry(dialog, width=30)
-            hint_entry.pack(pady=5)
+            hint_text = tk.Text(dialog, height=6, width=60, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
+            hint_text.pack(pady=5)
+
+            # Create a Scrollbar for the Text widget
+            hint_scrollbar = tk.Scrollbar(dialog, orient=tk.VERTICAL, command=hint_text.yview)
+            hint_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+            # Configure the Text widget to use the Scrollbar
+            hint_text.config(yscrollcommand=hint_scrollbar.set)
+
+
+            def on_listbox_select(event):
+                selected_index = listbox.curselection()
+                if selected_index:
+                    selected_item = listbox.get(selected_index)
+                    prompt = prompt_templates.get_prompt_tpl(selected_item)
+                    hint_text.delete("1.0", tk.END)
+                    hint_text.insert(tk.END, f"{prompt['system_prompt']}.\n{prompt['user_prompt']}")
+
+            # Bind the selection event to the function
+            listbox.bind('<<ListboxSelect>>', on_listbox_select)
+
 
             def on_yes():
                 selected_index = listbox.curselection()
                 if selected_index:
                     selected_item = listbox.get(selected_index)
-                    hint_message = hint_entry.get()
+                    hint_message = hint_text.get("1.0", tk.END).strip()
+
                     prompt = prompt_templates.get_prompt_tpl(selected_item)
                     logger.info(f"Selected item: {selected_item}, Hint message: {hint_message}, Prompt: {prompt}")
                     #  add your AIGC logic here
-                    if self._template_name == "diary" and selected_item == "arrange_calendar":
-                        logger.info("mkae schedule")
-                        asyncio.run(self.make_schedule())
+                    if self._template_name == "diary":
+                        if selected_item == "arrange_calendar":
+                            logger.info("mkae schedule")
+                            asyncio.run(self.make_schedule())
+                        else:
+                            asyncio.run(self.ask_llm(prompt, hint_message))
 
                 dialog.destroy()
 
@@ -317,20 +354,17 @@ class StickyNote:
             # Create Yes and Cancel buttons
             button_frame = tk.Frame(dialog)
             button_frame.pack(pady=10)
-            yes_button = tk.Button(button_frame, text="Yes", command=on_yes)
+            yes_button = tk.Button(button_frame, text="Ask", command=on_yes)
             yes_button.pack(side=tk.LEFT, padx=5)
-            cancel_button = tk.Button(button_frame, text="Cancel", command=on_cancel)
+            cancel_button = tk.Button(button_frame, text="Exit", command=on_cancel)
             cancel_button.pack(side=tk.LEFT, padx=5)
 
     async def ask_llm(self, prompt_tpl, content):
-        data_dict = {
-            "content": content,
-        }
-        template = Template(prompt_tpl['user_prompt'])
-        rendered_str = template.render(data_dict)
+
         #logger.info(rendered_str)
-        llm_result = self._llm_service.ask(prompt_tpl['system_prompt'], rendered_str)
+        llm_result = self._llm_service.ask(prompt_tpl['system_prompt'], content)
         logger.info(f"result={llm_result}")
+        self.text_area.insert(tk.END, llm_result)
 
     async def make_schedule(self):
         #, tasks, system_prompt, user_prompt
@@ -365,7 +399,7 @@ class StickyNote:
         self._root = tk.Tk()
         self._style = ttk.Style()
         self._style.theme_use('alt')
-        self._root.attributes('-alpha', 0.9)  # 设置窗口透明度
+        self._root.attributes('-alpha', 0.9)
         self._root.title(self._title)
 
         self._root.grid_rowconfigure(2, weight=1)
