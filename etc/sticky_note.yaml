@@ -27,11 +27,11 @@ config:
     learn domain knowledge, 2, 2, 120, {{ tomorrow }}
 
 llm:
-  llm_base_url: https://api.deepseek.com
-  llm_model: deepseek-chat
-  llm_stream: false
-  llm_max_token: 4096
-  llm_temperature: 1.0
+  base_url: https://api.deepseek.com
+  model: deepseek-chat
+  stream: false
+  max_token: 4096
+  temperature: 1.0
 templates:
   diary: |
     ## Inbox

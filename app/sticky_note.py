@@ -12,7 +12,7 @@ import time
 from jinja2 import Template
 from yaml_config import YamlConfig
 from common_util import task_csv_to_json, extract_markdown_text
-from llm_service import get_llm_service_instance, LlmConfig, LlmService
+from llm_service import get_llm_service_instance, read_llm_config
 from loguru import logger
 import dotenv
 dotenv.load_dotenv()
@@ -30,14 +30,6 @@ def get_resource_path(relative_path):
     logger.info(f"load resource from {base_path}")
     return os.path.join(base_path, relative_path)
 
-
-def read_llm_config(config: YamlConfig):
-    base_url = config.get_config_item_2("llm", "base_url") or os.getenv("LLM_BASE_URL")
-    api_key = config.get_config_item_2("llm", "api_key") or os.getenv("LLM_API_KEY")
-    model = config.get_config_item_2("llm", "model") or os.getenv("LLM_MODEL")
-    stream = config.get_config_item_2("llm", "stream") or os.getenv("LLM_STREAM")
-    return LlmConfig(base_url=base_url, api_key=api_key, model=model, stream=stream)
-
 class StickyNote:
     def __init__(self, config_file, prompt_config_file, template_name):
         self._config = YamlConfig(config_file)
@@ -48,6 +40,8 @@ class StickyNote:
         self._long_break_min = int(self._config.get_config_item_2("config", "long_break_min"))
         self._short_break_min = int(self._config.get_config_item_2("config", "short_break_min"))
         self._tomato_count = 0
+        self._left_seconds = 0
+
         self._llm_config = read_llm_config(self._config)
 
         if self._llm_config.api_key:
@@ -216,6 +210,11 @@ class StickyNote:
         self._minute.set("{0:2d}".format(min))
         self._second.set("{0:2d}".format(sec))
 
+        #logger.info("set time to {0:2d}:{1:2d}:{2:2d}".format(hour, min, sec))
+        self._hour_box.update()
+        self._minute_box.update()
+        self._second_box.update()
+
     def reset(self):
         self._started = False
         self.set_time(0, self._tomato_min, 0)
@@ -235,41 +234,34 @@ class StickyNote:
     def countdown(self):
         self._started = True
         try:
-            left_seconds = int(self._hour.get())*3600 + int(self._minute.get())*60 + int(self._second.get())
+            self._left_seconds = int(self._hour.get())*3600 + int(self._minute.get())*60 + int(self._second.get())
         except:
             messagebox.showwarning('hehe', 'Invalid Input Value!')
 
-        while self._started:
+        if (self._left_seconds == 0):
+            self._tomato_count += 1
+            response = messagebox.askyesnocancel('haha', "Have a rest at {} for {} tomatoes?".format( datetime.datetime.now().strftime(TIME_FORMAT),self._tomato_count))
+            if response:
+                self.set_time(0, self._tomato_min, 0)
+                self._left_seconds = self._short_break_min * 60
+            elif response == False:
+                self.set_time(0, self._tomato_min, 0)
+                self._left_seconds = self._tomato_count * 60
+            else:
+                self._started = False
+                return
+        else:
+            self._left_seconds -= 1
 
-            hours, mins, secs = self.get_hour_min_sec(left_seconds)
-            self.set_time(hours, mins, secs)
-            if left_seconds >= 60:
-                self._hour_box.update()
-            self._minute_box.update()
-            self._second_box.update()
+        hours, mins, secs = self.get_hour_min_sec(self._left_seconds)
+        self.set_time(hours, mins, secs)
 
-            time.sleep(1)
-
-            if (left_seconds == 0):
-                self._tomato_count += 1
-                response = messagebox.askyesnocancel('haha', "Have a rest at {} for {} tomatoes?".format( datetime.datetime.now().strftime(TIME_FORMAT),self._tomato_count))
-                if response:
-                    self.set_time(0, self._tomato_min, 0)
-                    left_seconds = self._short_break_min * 60
-                elif response == False:
-                    self.set_time(0, self._tomato_min, 0)
-                    left_seconds = self._long_break_min * 60
-                else:
-                    break
-
-            left_seconds -= 1
-
+        self._root.after(1000, self.countdown)
 
     def show_aigc_dialog(self):
             # Create a new top-level window
             dialog = tk.Toplevel(self._root)
             dialog.title("AI for sticky note")
-
 
             dialog_width = 600
             dialog_height = 400
@@ -302,7 +294,7 @@ class StickyNote:
             items = sorted(prompt_templates.get_prompts())
             for item in items:
                 listbox.insert(tk.END, item)
-            listbox.selection_set(0)
+            #listbox.selection_set(0)
 
             # Create an entry for hint message
             hint_label = tk.Label(dialog, text="Hint Message:")
@@ -323,8 +315,10 @@ class StickyNote:
                 if selected_index:
                     selected_item = listbox.get(selected_index)
                     prompt = prompt_templates.get_prompt_tpl(selected_item)
+                    prompt_tpl = f"{prompt['system_prompt']}.\n{prompt['user_prompt']}"
+                    prompt_text = self._llm_service.build_prompt(prompt["variables"], prompt_tpl)
                     hint_text.delete("1.0", tk.END)
-                    hint_text.insert(tk.END, f"{prompt['system_prompt']}.\n{prompt['user_prompt']}")
+                    hint_text.insert(tk.END, prompt_text)
 
             # Bind the selection event to the function
             listbox.bind('<<ListboxSelect>>', on_listbox_select)
@@ -337,14 +331,14 @@ class StickyNote:
                     hint_message = hint_text.get("1.0", tk.END).strip()
 
                     prompt = prompt_templates.get_prompt_tpl(selected_item)
-                    logger.info(f"Selected item: {selected_item}, Hint message: {hint_message}, Prompt: {prompt}")
+                    logger.info(f"Selected item: {selected_item}, Hint message: {hint_message}")
                     #  add your AIGC logic here
                     if self._template_name == "diary":
                         if selected_item == "arrange_calendar":
-                            logger.info("mkae schedule")
-                            asyncio.run(self.make_schedule())
+                            asyncio.run_coroutine_threadsafe(self.make_schedule(), self._loop)
                         else:
-                            asyncio.run(self.ask_llm(prompt, hint_message))
+                            logger.info("will add llm...")
+                            asyncio.run_coroutine_threadsafe(self.ask_llm(hint_message), self._loop)
 
                 dialog.destroy()
 
@@ -354,17 +348,26 @@ class StickyNote:
             # Create Yes and Cancel buttons
             button_frame = tk.Frame(dialog)
             button_frame.pack(pady=10)
-            yes_button = tk.Button(button_frame, text="Ask", command=on_yes)
+            yes_button = tk.Button(button_frame, text="Ask AI", command=on_yes)
             yes_button.pack(side=tk.LEFT, padx=5)
             cancel_button = tk.Button(button_frame, text="Exit", command=on_cancel)
             cancel_button.pack(side=tk.LEFT, padx=5)
 
-    async def ask_llm(self, prompt_tpl, content):
+    async def ask_llm(self, content):
+        prompt_lines = content.split('\n')
+        system_prompt = "You are a helpful assistant"
+        user_prompt = content
+        if len(prompt_lines) > 1:
+            first_line = "".join(prompt_lines[:1])
+            if "你是" in first_line or "you are" in first_line.lower():
+                system_prompt = "".join(prompt_lines[:1])
+                user_prompt = '\n'.join(prompt_lines[1:])
 
-        #logger.info(rendered_str)
-        llm_result = self._llm_service.ask(prompt_tpl['system_prompt'], content)
-        logger.info(f"result={llm_result}")
-        self.text_area.insert(tk.END, llm_result)
+        logger.info(f"ask llm: {system_prompt}, {user_prompt}")
+        llm_result = await self._llm_service.ask(system_prompt, user_prompt)
+        answer_title = f"\n\n## {'-'*20} Answer {'-'*20}\n\n"
+        logger.info(f"llm_result={llm_result}")
+        self.text_area.insert(tk.END, answer_title + llm_result)
 
     async def make_schedule(self):
         #, tasks, system_prompt, user_prompt
@@ -497,11 +500,18 @@ class StickyNote:
         quit_button.grid(row=0, column=6, padx=2)
         self._root.attributes("-topmost", True)
 
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+        self._root.after(100, self._run_async_tasks)
         self._root.after(self.auto_save_interval, self.auto_save)  # Call auto_save function every n ms
 
         self._root.configure(bg='#9acd32')
         # Start the GUI loop
         self._root.mainloop()
+
+    def _run_async_tasks(self):
+        self._loop.run_until_complete(asyncio.sleep(0))
+        self._root.after(100, self._run_async_tasks)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Daily Sticky Note Application")

@@ -28,7 +28,7 @@ class AsyncLlmClient:
     async def get_llm_response(self, system_prompt: str, user_prompt: str, **kwargs) -> str:
         messages = [{"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}]
-
+        #logger.debug(f"{self._base_url}, {self._model}, {self._stream}: {messages}")
         response = await self._client.chat.completions.create(
             model=self._model,
             messages=messages,

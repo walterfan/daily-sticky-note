@@ -1,8 +1,8 @@
-translate:
+translate_en:
   desc: translate text
   system_prompt: You are a professional translator.
   user_prompt: |
-    Please translate the following text from {source_language} to {target_language} while preserving the original tone and meaning.
+    Please translate the following text from {{ source_language }} to {{ target_language }} while preserving the original tone and meaning.
   variables:
     source_language: English
     target_language: Chinese
@@ -10,11 +10,11 @@ translate:
     Please translate the following text from English to Chinese while preserving the original tone and meaning: "How are you?"
   tags: translate
 
-write:
+write_content:
   desc: write content
   system_prompt: You are a skilled content writer.
   user_prompt: |
-    Please write a detailed article on the topic "{topic}" that is informative, engaging, and suitable for a {audience}.
+    Please write a detailed article on the topic "{{ topic }}" that is informative, engaging, and suitable for a {{ audience }}.
   variables:
     topic: Benefits of Remote Work
     audience: general audience
@@ -26,7 +26,7 @@ summarize:
   desc: summarize content
   system_prompt: You are an expert summarizer.
   user_prompt: |
-    Please provide a concise summary of the following text: "{text}"
+    Please provide a concise summary of the following text: "{{ text }}"
   variables:
     text: A detailed report on climate change trends
   example: |
@@ -37,7 +37,7 @@ generate:
   desc: generate content
   system_prompt: You are a creative generator of ideas.
   user_prompt: |
-    Please generate {type} ideas for "{context}" that are original, relevant, and practical.
+    Please generate {{ type }} ideas for "{{ context }}" that are original, relevant, and practical.
   variables:
     type: innovative
     context: renewable energy solutions
@@ -49,7 +49,7 @@ translate_cn:
   desc: 翻译文本
   system_prompt: 你是一名专业的翻译人员。
   user_prompt: |
-    请将以下文本从{source_language}翻译为{target_language}，并保留原文的语气和含义。
+    请将以下文本从{{ source_language }}翻译为{{ target_language }}，并保留原文的语气和含义。
   variables:
     source_language: 英语
     target_language: 中文
@@ -61,7 +61,7 @@ write_cn:
   desc: 写作内容
   system_prompt: 你是一名熟练的内容创作者。
   user_prompt: |
-    请围绕主题“{topic}”写一篇详细的文章，内容需信息丰富、有吸引力，并适合{audience}。
+    请围绕主题“{{ topic }}”写一篇详细的文章，内容需信息丰富、有吸引力，并适合{{ audience }}。
   variables:
     topic: 远程工作的好处
     audience: 普通读者
@@ -73,7 +73,7 @@ summarize_cn:
   desc: 总结内容
   system_prompt: 你是一名优秀的摘要专家。
   user_prompt: |
-    请对以下文本进行简洁的总结：“{text}”
+    请对以下文本进行简洁的总结：“{{ text }}”
   variables:
     text: 一份关于气候变化趋势的详细报告
   example: |
@@ -84,7 +84,7 @@ generate_cn:
   desc: 生成内容
   system_prompt: 你是一名富有创意的点子生成者。
   user_prompt: |
-    请为“{context}”生成{type}的点子，要求原创、相关且可行。
+    请为“{{ context }}”生成{{ type }}的点子，要求原创、相关且可行。
   variables:
     type: 创新
     context: 可再生能源解决方案
@@ -94,9 +94,9 @@ generate_cn:
 
 explain_syntax:
   desc: explain syntax
-  system_prompt: You are an expert in {language}
+  system_prompt: You are an expert in {{ language }}
   user_prompt: |
-    please explain how the {function} works in {language} in a simple and understandable way
+    please explain how the {{ function }} works in {{ language }} in a simple and understandable way
   variables:
     language: java
     function: String.formated
@@ -106,21 +106,21 @@ explain_syntax:
 
 best_practice:
   desc: best practice
-  system_prompt: You are an expert in {language}
+  system_prompt: You are an expert in {{ language }}
   user_prompt: |
-    please show me best practices for writing {function} in {language} in a simple and understandable way
+    please show me best practices for writing {{ function }} in {{ language }} in a simple and understandable way
   variables:
-    language: java
-    function: distributed cache
+    language: golang
+    function: concurrent programming
   example: |
     You are an expert in JavaScript, please show me best practices for writing functions in JavaScript in a simple and understandable way
   tags: learn
 
 write_function:
   desc: write function
-  system_prompt: You are an expert in {language}
+  system_prompt: You are an expert in {{ language }}
   user_prompt: |
-    please write a {function_name} function to {function_desc}. It accepts {input_parameters} and returns {output_result}
+    please write a {{ function_name }} function to {{ function_desc }}. It accepts {{ input_parameters }} and returns {{ output_result }}
   variables:
     language: java
     function_name: scheduleTask
@@ -133,9 +133,9 @@ write_function:
 
 recommend_framework:
   desc: recommend framework
-  system_prompt: You are an expert in {language}
+  system_prompt: You are an expert in {{ language }}
   user_prompt: |
-    please recommend a suitable framework for {function} about {feature} that following 4L principle (Lots of people use it, Lots of learning materials, Lots of successful cases, License is free)
+    please recommend a suitable framework for {{ function }} about {{ feature }} that following 4L principle (Lots of people use it, Lots of learning materials, Lots of successful cases, License is free)
   variables:
     language: java
     function: distributed lock
@@ -146,9 +146,9 @@ recommend_framework:
 
 correct_syntax:
   desc:  correct syntax
-  system_prompt: You are an expert in {language}
+  system_prompt: You are an expert in {{ language }}
   user_prompt: |
-    please explain what is the correct syntax for {function} in {language} in a simple and understandable way with examples
+    please explain what is the correct syntax for {{ function }} in {{ language }} in a simple and understandable way with examples
   variables:
     language: java
     function: thread creation and execution
@@ -160,7 +160,7 @@ design_suggestion:
   desc: design suggestion
   system_prompt: You are an expert at system design and architecture
   user_prompt: |
-    please tell me how to design a {system} for {business}. The technology stack is {technologies}.
+    please tell me how to design a {{ system }} for {{ business }}. The technology stack is {{ technologies }}.
   variables:
     system: CRM
     business: retail business
@@ -171,7 +171,7 @@ design_suggestion:
 
 fill_in_the_middle:
   desc:  fill-in-the-middle
-  system_prompt: You are an expert in {language}
+  system_prompt: You are an expert in {{ language }}
   user_prompt: |
     please complete the following code snippet according to the code comments and provide a complete set of unit test cases.
   variables:
@@ -181,9 +181,9 @@ fill_in_the_middle:
   tags: code
 convert_code:
   desc:  convert code
-  system_prompt: You are an expert of {language1} and {language2}
+  system_prompt: You are an expert of {{ language1 }} and {{ language2 }}
   user_prompt: |
-    please convert the below code snippet from {language1} to {language2}:
+    please convert the below code snippet from {{ language1 }} to {{ language2 }}:
   variables:
     language1: python
     language2: java
@@ -193,9 +193,9 @@ convert_code:
 
 code_generation:
   desc:  code generation
-  system_prompt: You are an expert in {language} and {frameworks}
+  system_prompt: You are an expert in {{ language }} and {{ frameworks }}
   user_prompt: |
-    please use {frameworks} to generate CRUD code of corresponding controller, service and repository classes for the following entity classes.
+    please use {{ frameworks }} to generate CRUD code of corresponding controller, service and repository classes for the following entity classes.
   variables:
     language: java
     frameworks: spring boot and mybatis
@@ -205,9 +205,9 @@ code_generation:
 
 code_optimization:
   desc:  optimize code
-  system_prompt: You are an expert in {language}
+  system_prompt: You are an expert in {{ language }}
   user_prompt: |
-    please optimize the following {language} code for '{explain}' to make it more {purpose}:
+    please optimize the following {{ language }} code for '{{ explain }}' to make it more {{ purpose }}:
   variables:
     language: java
     explain: performance
@@ -218,9 +218,9 @@ code_optimization:
 
 code_review:
   desc:  find bad smell
-  system_prompt: You are an expert in {language}
+  system_prompt: You are an expert in {{ language }}
   user_prompt: |
-    please review the following {language} code for code smells and suggest improvements:
+    please review the following {{ language }} code for code smells and suggest improvements:
   variables:
     language: java
   example: |
@@ -229,9 +229,9 @@ code_review:
 
 bug_fix:
   desc:  fix bug
-  system_prompt: You are an expert in {language}
+  system_prompt: You are an expert in {{ language }}
   user_prompt: |
-    please teach me how to fix {issue} of the following {language} code which is for '{explain}':
+    please teach me how to fix {{ issue }} of the following {{ language }} code which is for '{{ explain }}':
   variables:
     language: java
     issue: memory leak
@@ -242,9 +242,9 @@ bug_fix:
 
 code_refactoring:
   desc:  refactoring
-  system_prompt: You are an expert in {language}
+  system_prompt: You are an expert in {{ language }}
   user_prompt: |
-    please refactor the given {language} code to improve its error handling and resilience:
+    please refactor the given {{ language }} code to improve its error handling and resilience:
   variables:
     language: java
   example: |
@@ -253,9 +253,9 @@ code_refactoring:
 
 domain_design:
   desc:  domain design
-  system_prompt: You are an expert in {language} and {domain}
+  system_prompt: You are an expert in {{ language }} and {{ domain }}
   user_prompt: |
-    please suggest for designing an effective data model for {project} which is for {purpose}:
+    please suggest for designing an effective data model for {{ project }} which is for {{ purpose }}:
   variables:
     language: java
     domain: mongodb
@@ -267,9 +267,9 @@ domain_design:
 
 execute_code:
   desc:  execute code
-  system_prompt: You are a {language} interpreter/compiler
+  system_prompt: You are a {{ language }} interpreter/compiler
   user_prompt: |
-    please execute the following {language} code, and tell me the execution result, or something wrong if there are any errors of syntax or logic
+    please execute the following {{ language }} code, and tell me the execution result, or something wrong if there are any errors of syntax or logic
   variables:
     language: java
   example: |
@@ -278,9 +278,9 @@ execute_code:
 
 unit_test:
   desc:  write unit tests
-  system_prompt: You are an expert in {language}
+  system_prompt: You are an expert in {{ language }}
   user_prompt: |
-    please write unit tests for the following code that is for {explain} using {framework}
+    please write unit tests for the following code that is for {{ explain }} using {{ framework }}
   variables:
     language: java
     explain: a calculator
@@ -292,7 +292,7 @@ unit_test:
 write_document:
   desc:  write document
   system_prompt: |
-    You are an expert in {language} and {domain}, and you are also a professional document writer,
+    You are an expert in {{ language }} and {{ domain }}, and you are also a professional document writer,
   user_prompt: |
     please write documentation for the code below. You should include detailed instructions to allow a developer to understand and execute easily, also explain what the code does, and possible vulnerabilities that exist in this code:
   variables:
@@ -304,9 +304,9 @@ write_document:
 
 explain_architecture:
   desc:  explain architecture
-  system_prompt: You are an expert in {language} and {domain}
+  system_prompt: You are an expert in {{ language }} and {{ domain }}
   user_prompt: |
-    please explain the architecture of {framework} and main workflow in a simple and understandable way, also provide some UML diagrams and examples, so that I can have a deeper understanding.
+    please explain the architecture of {{ framework }} and main workflow in a simple and understandable way, also provide some UML diagrams and examples, so that I can have a deeper understanding.
   variables:
     language: java
     domain: web development
@@ -317,9 +317,9 @@ explain_architecture:
 
 log_and_metrics:
   desc:  add metrics and log
-  system_prompt: You are an expert in {language} and {domain}
+  system_prompt: You are an expert in {{ language }} and {{ domain }}
   user_prompt: |
-    please add metrics and log for the following {language} code that {explain}, so that I can measure its performance and easy troubleshooting
+    please add metrics and log for the following {{ language }} code that {{ explain }}, so that I can measure its performance and easy troubleshooting
   variables:
     language: java
     domain: web development
@@ -330,9 +330,9 @@ log_and_metrics:
 
 write_script:
   desc:  write script
-  system_prompt: You are an expert in {language} and {domain}
+  system_prompt: You are an expert in {{ language }} and {{ domain }}
   user_prompt: |
-    please write a script for {purpose} by {tool} that is to {explain}
+    please write a script for {{ purpose }} by {{ tool }} that is to {{ explain }}
   variables:
     language: java
     domain: data science
@@ -351,16 +351,16 @@ arrange_calendar:
     ----------------------- example ---------------------------------
     输入:
     ```json
-    {
+    {{ 
       "goal": "提高工作效率和编程能力",
       "tasks": [
-        { "name": "task 1", "priority": 1, "difficulty": 1, "duration": 180, "deadline": "2025-02-25" },
-        { "name": "task 2", "priority": 2, "difficulty": 2, "duration": 30,  "deadline": "2025-02-23" },
-        { "name": "task 3", "priority": 3, "difficulty": 3, "duration": 120, "deadline": "2025-02-23"},
-        { "name": "task 4", "priority": 4, "difficulty": 3, "duration": 120, "deadline": "2025-02-23"},
+        {{  "name": "task 1", "priority": 1, "difficulty": 1, "duration": 180, "deadline": "2025-02-25"  }},
+        {{  "name": "task 2", "priority": 2, "difficulty": 2, "duration": 30,  "deadline": "2025-02-23"  }},
+        {{  "name": "task 3", "priority": 3, "difficulty": 3, "duration": 120, "deadline": "2025-02-23" }},
+        {{  "name": "task 4", "priority": 4, "difficulty": 3, "duration": 120, "deadline": "2025-02-23" }},
       ]
       "available_time": ["9:00-11:30", "13:30-18:00", “21:00-23:00”]
-    }
+     }}
     ```
     - priority 表示任务的优先级:
       1: important and urgent, 2: important and not urgent, 3: urgent not important, 4: not important and not urgent
@@ -383,9 +383,9 @@ arrange_calendar:
     | 21:00-23:00 | task 4      |
     ```
     ----------------------- action ---------------------------------
-    今天是 {{ today }}, 我有如下任务:
+    今天是 {{ {{  today  }} }}, 我有如下任务:
     ```json
-    {{ tasks }}
+    {{ {{  tasks  }} }}
     ```
 
     请你根据时间管理的一般原则, 科学合理地安排好一天的日程, 有如下要求:

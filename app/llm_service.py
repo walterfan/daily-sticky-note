@@ -7,7 +7,7 @@ from jinja2 import Template
 # for testing
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(CURRENT_DIR))
-
+import asyncio
 from async_llm_client import AsyncLlmClient, str2bool
 from yaml_config import YamlConfig
 
@@ -20,6 +20,14 @@ def list2str(l: list[str]) -> str:
             rs += ", "
         rs += f"'{item}'"
     return rs
+
+def read_llm_config(config: YamlConfig):
+    base_url = config.get_config_item_2("llm", "base_url") or os.getenv("LLM_BASE_URL")
+    api_key = config.get_config_item_2("llm", "api_key") or os.getenv("LLM_API_KEY")
+    model = config.get_config_item_2("llm", "model") or os.getenv("LLM_MODEL")
+    stream = config.get_config_item_2("llm", "stream") or os.getenv("LLM_STREAM")
+    return LlmConfig(base_url=base_url, api_key=api_key, model=model, stream=stream)
+
 
 class PromptTemplates:
 
@@ -58,7 +66,10 @@ class LlmConfig:
 
 class LlmService:
     def __init__(self, llm_config: LlmConfig, prompt_config_file: str = f"{CURRENT_DIR}/prompt_template.yml"):
-        self._llm_client = AsyncLlmClient(base_url=llm_config.base_url, api_key=llm_config.api_key)
+        self._llm_client = AsyncLlmClient(base_url=llm_config.base_url,
+            api_key=llm_config.api_key,
+            model=llm_config.model,
+            stream=llm_config.stream)
         if prompt_config_file:
             self._prompt_templates = PromptTemplates(prompt_config_file)
 
@@ -111,3 +122,12 @@ def get_llm_service_instance(llm_config: LlmConfig, prompt_config_file: str = No
         g_llm_service = LlmService(llm_config, prompt_config_file)
     return g_llm_service
 
+if __name__ == "__main__":
+
+    config = YamlConfig("./etc/sticky_note.yaml")
+    llm_config = read_llm_config(config)
+    logger.info(f"llm_config={llm_config}")
+    if llm_config.api_key:
+        llm_service = get_llm_service_instance(llm_config, "./etc/prompt_template.yaml")
+        resp = asyncio.run(llm_service.ask("You are a helpful assistant.", "Hello, how are you?"))
+        logger.info(resp)

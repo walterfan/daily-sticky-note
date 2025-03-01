@@ -1,2 +1,5 @@
 #!/bin/bash -e
-nohup ./app/sticky_note.py -f ./etc/sticky_note.yaml -t diary > /dev/null 2>&1 &
+date=$(date +%Y%m%d)
+log_file="./logs/sticky_note_$date.log"
+mkdir -p ./logs
+nohup ./app/sticky_note.py -f ./etc/sticky_note.yaml -t diary > "$log_file" 2>&1 &
