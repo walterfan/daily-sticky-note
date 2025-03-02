@@ -215,13 +215,6 @@ class StickyNote:
         self._minute_box.update()
         self._second_box.update()
 
-    def reset(self):
-        self._started = False
-        self.set_time(0, self._tomato_min, 0)
-
-    def pause(self):
-        self._started = False
-
     def get_hour_min_sec(self, left_seconds):
 
         mins,secs = divmod(left_seconds, 60)
@@ -232,21 +225,23 @@ class StickyNote:
         return hours, mins, secs
 
     def countdown(self):
-        self._started = True
+        if not self._started:
+            return
         try:
             self._left_seconds = int(self._hour.get())*3600 + int(self._minute.get())*60 + int(self._second.get())
         except:
             messagebox.showwarning('hehe', 'Invalid Input Value!')
+            return
 
         if (self._left_seconds == 0):
             self._tomato_count += 1
-            response = messagebox.askyesnocancel('haha', "Have a rest at {} for {} tomatoes?".format( datetime.datetime.now().strftime(TIME_FORMAT),self._tomato_count))
+            response = messagebox.askyesnocancel('haha', "Have a rest for {} minutes at {}?".format( self._short_break_min, datetime.datetime.now().strftime(TIME_FORMAT)))
             if response:
                 self.set_time(0, self._tomato_min, 0)
                 self._left_seconds = self._short_break_min * 60
             elif response == False:
                 self.set_time(0, self._tomato_min, 0)
-                self._left_seconds = self._tomato_count * 60
+                self._left_seconds = self._tomato_min * 60
             else:
                 self._started = False
                 return
@@ -256,7 +251,20 @@ class StickyNote:
         hours, mins, secs = self.get_hour_min_sec(self._left_seconds)
         self.set_time(hours, mins, secs)
 
-        self._root.after(1000, self.countdown)
+        if self._started:
+            self._root.after(1000, self.countdown)
+
+    def start(self):
+        self._started = True
+        self.countdown()
+
+    def pause(self):
+        self._started = False
+        #self._left_seconds = 0
+
+    def reset(self):
+        self._started = False
+        self.set_time(0, self._tomato_min, 0)
 
     def show_aigc_dialog(self):
             # Create a new top-level window
@@ -448,7 +456,7 @@ class StickyNote:
         self.file_name_entry.grid(row=0, column=1, padx=5, pady=2)
         self.file_name_entry.insert(tk.END, self.default_filename)
 
-        start_button = tk.Button(self.file_name_frame, text="start",  bd='5', fg="green", command=self.countdown)
+        start_button = tk.Button(self.file_name_frame, text="start",  bd='5', fg="green", command=self.start)
         start_button.grid(row=0, column=3, padx=3)
 
         stop_button = tk.Button(self.file_name_frame, text="stop",  bd='5', fg="blue",command=self.pause)
