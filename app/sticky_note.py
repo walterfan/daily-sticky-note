@@ -255,6 +255,14 @@ class StickyNote:
             self._root.after(1000, self.countdown)
 
     def start(self):
+        try:
+            self._left_seconds = int(self._hour.get())*3600 + int(self._minute.get())*60 + int(self._second.get())
+        except:
+            messagebox.showwarning('hehe', 'Invalid Input Value!')
+            return
+        if self._left_seconds <= 0:
+            messagebox.showwarning('hehe', 'Please set a valid time!')
+            return
         self._started = True
         self.countdown()
 
@@ -292,7 +300,7 @@ class StickyNote:
 
             # Create a Scrollbar
             scrollbar = tk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=listbox.yview)
-            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y, expand=True)
 
             # Configure the Listbox to use the Scrollbar
             listbox.config(yscrollcommand=scrollbar.set)
@@ -305,9 +313,9 @@ class StickyNote:
             #listbox.selection_set(0)
 
             # Create an entry for hint message
-            hint_label = tk.Label(dialog, text="Hint Message:")
+            hint_label = tk.Label(dialog, text="Prompt:")
             hint_label.pack()
-            hint_text = tk.Text(dialog, height=6, width=60, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
+            hint_text = tk.Text(dialog, height=8, width=65, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
             hint_text.pack(pady=5)
 
             # Create a Scrollbar for the Text widget
@@ -320,13 +328,14 @@ class StickyNote:
 
             def on_listbox_select(event):
                 selected_index = listbox.curselection()
-                if selected_index:
-                    selected_item = listbox.get(selected_index)
-                    prompt = prompt_templates.get_prompt_tpl(selected_item)
-                    prompt_tpl = f"{prompt['system_prompt']}.\n{prompt['user_prompt']}"
-                    prompt_text = self._llm_service.build_prompt(prompt["variables"], prompt_tpl)
-                    hint_text.delete("1.0", tk.END)
-                    hint_text.insert(tk.END, prompt_text)
+                selected_item = listbox.get(selected_index)
+
+                prompt = prompt_templates.get_prompt_tpl(selected_item)
+                prompt_tpl = f"{prompt['system_prompt']}.\n{prompt['user_prompt']}"
+                #logger.info(f"Selected item: {selected_index}, {prompt_tpl}")
+                prompt_text = self._llm_service.build_prompt(prompt["variables"], prompt_tpl)
+                hint_text.delete("1.0", tk.END)
+                hint_text.insert(tk.END, prompt_text)
 
             # Bind the selection event to the function
             listbox.bind('<<ListboxSelect>>', on_listbox_select)

@@ -344,31 +344,31 @@ write_script:
   tags: code
 
 arrange_calendar:
-  desc:  arrange calendar
+  desc: arrange calendar
   system_prompt: 你是一个效率提升与项目管理方面的专家
   user_prompt: |
     我告诉你我当天的任务, 你会帮助我安排好一天的日程, 例如
     ----------------------- example ---------------------------------
-    输入:
+    * 输入:
     ```json
-    {{ 
+    {
       "goal": "提高工作效率和编程能力",
       "tasks": [
-        {{  "name": "task 1", "priority": 1, "difficulty": 1, "duration": 180, "deadline": "2025-02-25"  }},
-        {{  "name": "task 2", "priority": 2, "difficulty": 2, "duration": 30,  "deadline": "2025-02-23"  }},
-        {{  "name": "task 3", "priority": 3, "difficulty": 3, "duration": 120, "deadline": "2025-02-23" }},
-        {{  "name": "task 4", "priority": 4, "difficulty": 3, "duration": 120, "deadline": "2025-02-23" }},
-      ]
-      "available_time": ["9:00-11:30", "13:30-18:00", “21:00-23:00”]
-     }}
+        { "name": "task 1", "priority": 1, "difficulty": 1, "duration": 180, "deadline": "2025-02-25" },
+        { "name": "task 2", "priority": 2, "difficulty": 2, "duration": 30, "deadline": "2025-02-23" },
+        { "name": "task 3", "priority": 3, "difficulty": 3, "duration": 120, "deadline": "2025-02-23" },
+        { "name": "task 4", "priority": 4, "difficulty": 3, "duration": 120, "deadline": "2025-02-23" }
+      ],
+      "available_time": ["9:00-11:30", "13:30-18:00", "21:00-23:00"]
+    }
     ```
-    - priority 表示任务的优先级:
-      1: important and urgent, 2: important and not urgent, 3: urgent not important, 4: not important and not urgent
-    - difficulty: 任务的难度级别:
-      1: hard, 2: medium, 3: easy
-    - duration 表示任务可能花费的时间, 单位是分钟
-
-    输出:
+      - priority 表示任务的优先级:
+        1: important and urgent, 2: important and not urgent, 3: urgent not important, 4: not important and not urgent
+      - difficulty: 任务的难度级别:
+        1: hard, 2: medium, 3: easy
+      - duration 表示任务可能花费的时间, 单位是分钟
+      - deadline 表示任务的截止日期, 格式是 YYYY-MM-DD
+    * 输出:
     ```markdown
     | 时间段       | 任务         |
     |-------------|-------------|
@@ -383,21 +383,20 @@ arrange_calendar:
     | 21:00-23:00 | task 4      |
     ```
     ----------------------- action ---------------------------------
-    今天是 {{ {{  today  }} }}, 我有如下任务:
+    今天是 {{ today }}, 我有如下任务:
     ```json
-    {{ {{  tasks  }} }}
+    {{ tasks }}
     ```
-
     请你根据时间管理的一般原则, 科学合理地安排好一天的日程, 有如下要求:
+      * 要事优先, 预留一定的弹性时间给意料之外的事情
+      * 考虑我的精力分配, 给难度大的事情连续的大块时间
+      * 时间安排上注意有张有弛, 连续工作时间尽量小于一个小时, 短暂休息时间不小于 10 分钟
+      * 在刚上班时和下班前两次查收邮件和重要消息
+      * 体育锻炼, 学习和自我修炼的任务最好安排在非工作时间(20:00 - 23:00)
+      * 结果以 markdown 表格形式输出
 
-    * 要事优先, 预留一定的弹性时间给意料之外的事情
-    * 考虑我的精力分配, 给难度大的事情连续的大块时间
-    * 时间安排上注意有张有弛, 连续工作时间尽量小于一个小时, 短暂休息时间不小于 10 分钟
-    * 在刚上班时和下班前两次查收邮件和重要消息
-    * 体育锻炼, 学习和自我修炼的任务最好安排在非工作时间(20:00 - 23:00)
-    * 结果以 markdown 表格形式输出
   variables:
-    today: ...
-    tasks: ...
-  example: ...
+    today: TBD
+    tasks: TBD
+  example: TBD
   tags: efficiency
