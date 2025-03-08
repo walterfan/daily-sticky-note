@@ -7,6 +7,9 @@ config:
   short_break_min: 5
   default_command: "list files"
   frame_size: "560x360"
+  links:
+    - name: "deepseek"
+      url: "https://chat.deepseek.com"
   commands:
     - name: "disk space"
       shell: df -h

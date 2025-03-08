@@ -11,7 +11,7 @@ import asyncio
 import time
 from jinja2 import Template
 from yaml_config import YamlConfig
-from common_util import task_csv_to_json, extract_markdown_text
+from common_util import task_csv_to_json, extract_markdown_text, open_link
 from llm_service import get_llm_service_instance, read_llm_config
 from loguru import logger
 import dotenv
@@ -21,6 +21,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_MINS = 25
 TIME_FORMAT = "%H:%M:%S"
 DATE_FORMAT = "%Y%m%d"
+FULL_TIME_FORMAT = "%Y%m%d_%H%M%S"
 
 def get_resource_path(relative_path):
     if getattr(sys, 'frozen', False):
@@ -79,6 +80,20 @@ class StickyNote:
         # Set the window position
         self._root.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
+    def show_about_dialog(self):
+        messagebox.showinfo("About", "Sticky Note App v1.0\nCreated by Walter Fan")
+
+    def new_note(self, title="create new note", new_file_name=True):
+        selected_template = self.template_var.get()
+        response = messagebox.askyesno(title, f"Will replace current note?")
+        if response:
+            self._note_text = self._templates.get(selected_template, "")
+            self.text_area.delete("1.0", tk.END)
+            self.text_area.insert(tk.END, f"# {self.datestr}\n\n{self._note_text}")
+            self.datestr = datetime.datetime.now().strftime(FULL_TIME_FORMAT)
+            if new_file_name or (not self.file_name_entry.get().startswith(selected_template)):
+                self.file_name_entry.delete(0, tk.END)
+                self.file_name_entry.insert(tk.END, f"{selected_template}_{self.datestr}.md")
     # Function to save a sticky note to a custom file
     def save_note(self, prompt=True):
         note_text = self.text_area.get("1.0", tk.END).strip()
@@ -183,6 +198,9 @@ class StickyNote:
             result.append(command.get("name"))
         return result
 
+    def load_links(self):
+        return self._config.get_config_item_2("config", "links")
+
     def get_default_command(self):
         return self._config.get_config_item_2("config", "default_command")
 
@@ -191,16 +209,7 @@ class StickyNote:
         self._root.destroy()
 
     def on_template_select(self, event):
-        selected_template = self.template_var.get()
-        response = messagebox.askyesno("Load template", f"Will replace current note?")
-        if response:
-            self._note_text = self._templates.get(selected_template, "")
-            self.text_area.delete("1.0", tk.END)
-            self.text_area.insert(tk.END, f"# {self.datestr}\n\n{self._note_text}")
-
-            if not self.file_name_entry.get().startswith(selected_template):
-                self.file_name_entry.delete(0, tk.END)
-                self.file_name_entry.insert(tk.END, f"{selected_template}_{self.datestr}.md")
+        self.new_note("load template", False)
 
     def create_time_box(self, frame, label):
         return tk.Entry(frame, width=4,font=("Arial",18,""), justify='center', textvariable=label)
@@ -414,6 +423,42 @@ class StickyNote:
         self.text_area.delete("1.0", tk.END)
         self.text_area.insert(tk.END, new_text)
 
+    def add_top_menu(self):
+        # Create a top menu bar
+        menubar = tk.Menu(self._root)
+        self._root.config(menu=menubar)
+
+        # File menu
+        file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu.add_command(label="New", command=self.new_note)
+        file_menu.add_command(label="Open", command=self.open_file_dialog)
+        file_menu.add_command(label="Save", command=self.save_note)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.quit_app)
+        menubar.add_cascade(label="File", menu=file_menu)
+
+        # Edit menu
+        edit_menu = tk.Menu(menubar, tearoff=0)
+        edit_menu.add_command(label="Cut", command=lambda: self.text_area.event_generate("<<Cut>>"))
+        edit_menu.add_command(label="Copy", command=lambda: self.text_area.event_generate("<<Copy>>"))
+        edit_menu.add_command(label="Paste", command=lambda: self.text_area.event_generate("<<Paste>>"))
+        menubar.add_cascade(label="Edit", menu=edit_menu)
+
+        # Link menu
+        link_menu = tk.Menu(menubar, tearoff=0)
+        link_menu.add_command(label="About", command=self.show_about_dialog)
+        links = self.load_links()
+        for link in links:
+            link_menu.add_command(label=link.get("name"), command=lambda link=link: open_link(link.get("url")))
+        menubar.add_cascade(label="Links", menu=link_menu)
+
+
+        # Help menu
+        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu.add_command(label="About", command=self.show_about_dialog)
+        menubar.add_cascade(label="Help", menu=help_menu)
+
+
     def initialize(self):
         # Create the main window
         self._root = tk.Tk()
@@ -421,6 +466,8 @@ class StickyNote:
         self._style.theme_use('alt')
         self._root.attributes('-alpha', 0.9)
         self._root.title(self._title)
+
+        self.add_top_menu()
 
         self._root.grid_rowconfigure(2, weight=1)
         self._root.grid_columnconfigure(0, weight=1)

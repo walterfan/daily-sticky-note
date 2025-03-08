@@ -4,6 +4,7 @@ import time
 import json
 from datetime import datetime
 from loguru import logger
+import webbrowser
 
 class LazyLlmError(Exception):
     def __init__(self, reason, original_exception):
@@ -60,3 +61,27 @@ def task_csv_to_json(csv_str: str) -> str:
 def extract_markdown_text(text):
     match = re.search(r"```markdown\n(.*?)\n```", text, re.DOTALL)
     return match.group(1) if match else None
+
+
+def open_link(url):
+    """
+    Opens a URL in Google Chrome browser on macOS
+    
+    Args:
+        url (str): The website URL to open (e.g., "https://www.example.com")
+    """
+    try:
+        # Method 1: Using webbrowser with Chrome specified
+        # This assumes Chrome is installed in the default Applications folder
+        chrome_path = "open -a /Applications/Google\ Chrome.app %s"
+        webbrowser.get(chrome_path).open(url)
+        
+    except webbrowser.Error:
+        try:
+            # Method 2: Fallback using os.system and 'open' command
+            os.system(f"open -a 'Google Chrome' {url}")
+        except Exception as e:
+            print(f"Error opening URL: {e}")
+            # Optional: Add tkinter messagebox to show error
+            from tkinter import messagebox
+            messagebox.showerror("Error", "Could not open URL in Chrome")
