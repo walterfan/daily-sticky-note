@@ -123,7 +123,8 @@ def get_llm_service_instance(llm_config: LlmConfig, prompt_config_file: str = No
     return g_llm_service
 
 if __name__ == "__main__":
-
+    import dotenv
+    dotenv.load_dotenv()
     config = YamlConfig("./etc/sticky_note.yaml")
     llm_config = read_llm_config(config)
     logger.info(f"llm_config={llm_config}")
