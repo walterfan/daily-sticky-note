@@ -3,7 +3,7 @@ config:
   title: "sticky note v1.0 - walter"
   save_interval_ms: 5000
   default_tomato_min: 25
-  long_break_min: 15
+  deadline: "2025-06-07"
   short_break_min: 5
   default_command: "list files"
   frame_size: "560x360"

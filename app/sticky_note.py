@@ -38,7 +38,7 @@ class StickyNote:
         self._frame_size = self._config.get_config_item_2("config", "frame_size")
         self._started = False
         self._tomato_min = int(self._config.get_config_item_2("config", "default_tomato_min"))
-        self._long_break_min = int(self._config.get_config_item_2("config", "long_break_min"))
+        self._deadline = datetime.datetime.strptime(self._config.get_config_item_2("config", "deadline"), "%Y-%m-%d")
         self._short_break_min = int(self._config.get_config_item_2("config", "short_break_min"))
         self._tomato_count = 0
         self._left_seconds = 0
@@ -439,6 +439,9 @@ class StickyNote:
 
         # Edit menu
         edit_menu = tk.Menu(menubar, tearoff=0)
+        edit_menu.add_command(label="Undo", command=self.text_area.edit_undo, accelerator="Ctrl+Z")
+        edit_menu.add_command(label="Redo", command=self.text_area.edit_redo, accelerator="Ctrl+Y")
+
         edit_menu.add_command(label="Cut", command=lambda: self.text_area.event_generate("<<Cut>>"))
         edit_menu.add_command(label="Copy", command=lambda: self.text_area.event_generate("<<Copy>>"))
         edit_menu.add_command(label="Paste", command=lambda: self.text_area.event_generate("<<Paste>>"))
@@ -467,8 +470,6 @@ class StickyNote:
         self._root.attributes('-alpha', 0.9)
         self._root.title(self._title)
 
-        self.add_top_menu()
-
         self._root.grid_rowconfigure(2, weight=1)
         self._root.grid_columnconfigure(0, weight=1)
 
@@ -483,24 +484,11 @@ class StickyNote:
 
         self.template_var = tk.StringVar(self._root, self._template_name)
         self.template_choices = list(self._templates.keys())
-        template_box = ttk.Combobox(self.template_frame, textvariable=self.template_var, values=self.template_choices, width=20)
+        template_box = ttk.Combobox(self.template_frame, textvariable=self.template_var, values=self.template_choices, width=15)
         template_box.grid(row=0, column=1, padx=5)
         template_box.bind("<<ComboboxSelected>>", self.on_template_select)
 
-        self._hour = tk.StringVar()
-        self._minute = tk.StringVar()
-        self._second = tk.StringVar()
-
-        self._hour_box = self.create_time_box(self.template_frame, self._hour)
-        self._hour_box.grid(row=0, column=2, padx=5)
-
-        self._minute_box = self.create_time_box(self.template_frame, self._minute)
-        self._minute_box.grid(row=0, column=3, padx=5)
-
-        self._second_box = self.create_time_box(self.template_frame, self._second)
-        self._second_box.grid(row=0, column=4, padx=5)
-
-        self.set_time(0, self._tomato_min, 0)
+        self.arrange_time_boxes()
 
         # row 1: File name input field (one line)
         self.file_name_frame = tk.Frame(self._root)
@@ -522,13 +510,17 @@ class StickyNote:
         reset_button.grid(row=0, column=5, padx=3)
 
         # row 2: Text area to write notes (adjustable size)
-        self.text_area = tk.Text(self._root, height=15, width=60, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
+        self.text_area = tk.Text(self._root, height=15, width=60, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('MesloCommit Mono', 14), undo=True)
         self.scrollbar = tk.Scrollbar(self._root, command=self.text_area.yview)
         self.text_area.config(yscrollcommand=self.scrollbar.set)
         self.scrollbar.grid(row=2, column=1, sticky="ns")
         self.text_area.grid(row=2, column=0, padx=10, pady=5, sticky="nsew")
         self.text_area.insert(tk.END, f"# {self.datestr}")
         self.text_area.focus_set()
+
+        self._root.bind_all("<Control-z>", lambda event: self.text_area.edit_undo())
+        self._root.bind_all("<Control-y>", lambda event: self.text_area.edit_redo())
+
 
         file_path = f"{self._folder}/{self.default_filename}"
 
@@ -540,6 +532,22 @@ class StickyNote:
             self.text_area.insert(tk.END, f"\n\n{self._note_text}")
 
         # Buttons for saving and loading notes
+        self.arrange_buttons()
+
+        self._root.attributes("-topmost", True)
+
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+        self._root.after(100, self._run_async_tasks)
+        self._root.after(self.auto_save_interval, self.auto_save)  # Call auto_save function every n ms
+
+        self.add_top_menu()
+
+        self._root.configure(bg='#9acd32')
+        # Start the GUI loop
+        self._root.mainloop()
+
+    def arrange_buttons(self):
         self.button_frame = tk.Frame(self._root)
         self.button_frame.grid(row=3, column=0, padx=10, pady=5, sticky="ew")
 
@@ -562,16 +570,33 @@ class StickyNote:
 
         quit_button = tk.Button(self.button_frame, text="Quit", bd='2', fg="black", command=self.quit_app)
         quit_button.grid(row=0, column=6, padx=2)
-        self._root.attributes("-topmost", True)
 
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-        self._root.after(100, self._run_async_tasks)
-        self._root.after(self.auto_save_interval, self.auto_save)  # Call auto_save function every n ms
+    def arrange_time_boxes(self):
+        self._day = tk.StringVar()
+        self._hour = tk.StringVar()
+        self._minute = tk.StringVar()
+        self._second = tk.StringVar()
 
-        self._root.configure(bg='#9acd32')
-        # Start the GUI loop
-        self._root.mainloop()
+        self._day_box = self.create_time_box(self.template_frame, self._day)
+        self._day_box.grid(row=0, column=2, padx=2)
+
+        self.day_label = tk.Label(self.template_frame, text="days")
+        self.day_label.grid(row=0, column=3, padx=4, pady=2, sticky="w")
+
+        self._hour_box = self.create_time_box(self.template_frame, self._hour)
+        self._hour_box.grid(row=0, column=4, padx=2)
+
+        self._minute_box = self.create_time_box(self.template_frame, self._minute)
+        self._minute_box.grid(row=0, column=5, padx=2)
+
+        self._second_box = self.create_time_box(self.template_frame, self._second)
+        self._second_box.grid(row=0, column=6, padx=2)
+
+        left_days = (self._deadline - datetime.datetime.now()).days
+        self._day.set("{0:3d}".format(left_days))
+        self._day_box.update()
+
+        self.set_time(0, self._tomato_min, 0)
 
     def _run_async_tasks(self):
         self._loop.run_until_complete(asyncio.sleep(0))
