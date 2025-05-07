@@ -1,3 +1,5 @@
+generate_uuid:
+  desc: "Generate uuid"
 translate_en:
   desc: translate text
   system_prompt: You are a professional translator.

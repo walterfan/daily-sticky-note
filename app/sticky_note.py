@@ -8,7 +8,7 @@ import os, sys
 import datetime
 import argparse
 import asyncio
-import time
+import uuid
 from jinja2 import Template
 from yaml_config import YamlConfig
 from common_util import task_csv_to_json, extract_markdown_text, open_link
@@ -283,7 +283,7 @@ class StickyNote:
         self._started = False
         self.set_time(0, self._tomato_min, 0)
 
-    def show_aigc_dialog(self):
+    def show_tool_dialog(self):
             # Create a new top-level window
             dialog = tk.Toplevel(self._root)
             dialog.title("AI for sticky note")
@@ -322,10 +322,17 @@ class StickyNote:
             #listbox.selection_set(0)
 
             # Create an entry for hint message
-            hint_label = tk.Label(dialog, text="Prompt:")
-            hint_label.pack()
-            hint_text = tk.Text(dialog, height=8, width=65, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
+
+            hint_text = tk.Text(dialog, height=4, width=65, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
             hint_text.pack(pady=5)
+            hint_text.delete("1.0", tk.END)
+            hint_text.insert(tk.END, "Please select a prompt template from the list above.")
+
+            # Create an entry for output message
+            self.tool_output = tk.Text(dialog, height=4, width=65, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
+            self.tool_output.pack(pady=5)
+            self.tool_output.delete("1.0", tk.END)
+            self.tool_output.insert(tk.END, "Output will be shown here.")
 
             # Create a Scrollbar for the Text widget
             hint_scrollbar = tk.Scrollbar(dialog, orient=tk.VERTICAL, command=hint_text.yview)
@@ -340,9 +347,9 @@ class StickyNote:
                 selected_item = listbox.get(selected_index)
 
                 prompt = prompt_templates.get_prompt_tpl(selected_item)
-                prompt_tpl = f"{prompt['system_prompt']}.\n{prompt['user_prompt']}"
+                prompt_tpl = f"{prompt.get('system_prompt', '')}.\n{prompt.get('user_prompt', '')}"
                 #logger.info(f"Selected item: {selected_index}, {prompt_tpl}")
-                prompt_text = self._llm_service.build_prompt(prompt["variables"], prompt_tpl)
+                prompt_text = self._llm_service.build_prompt(prompt.get("variables", ""), prompt_tpl)
                 hint_text.delete("1.0", tk.END)
                 hint_text.insert(tk.END, prompt_text)
 
@@ -362,11 +369,14 @@ class StickyNote:
                     if self._template_name == "diary":
                         if selected_item == "arrange_calendar":
                             asyncio.run_coroutine_threadsafe(self.make_schedule(), self._loop)
+                        if selected_item == "generate_uuid":
+                            self.tool_output.delete("1.0", tk.END)
+                            self.tool_output.insert(tk.END, str(uuid.uuid4()))
                         else:
                             logger.info("will add llm...")
                             asyncio.run_coroutine_threadsafe(self.ask_llm(hint_message), self._loop)
 
-                dialog.destroy()
+                #dialog.destroy()
 
             def on_cancel():
                 dialog.destroy()
@@ -374,7 +384,7 @@ class StickyNote:
             # Create Yes and Cancel buttons
             button_frame = tk.Frame(dialog)
             button_frame.pack(pady=10)
-            yes_button = tk.Button(button_frame, text="Ask AI", command=on_yes)
+            yes_button = tk.Button(button_frame, text="Perform", command=on_yes)
             yes_button.pack(side=tk.LEFT, padx=5)
             cancel_button = tk.Button(button_frame, text="Exit", command=on_cancel)
             cancel_button.pack(side=tk.LEFT, padx=5)
@@ -393,7 +403,9 @@ class StickyNote:
         llm_result = await self._llm_service.ask(system_prompt, user_prompt)
         answer_title = f"\n\n## {'-'*20} Answer {'-'*20}\n\n"
         logger.info(f"llm_result={llm_result}")
-        self.text_area.insert(tk.END, answer_title + llm_result)
+        #self.text_area.insert(tk.END, answer_title + llm_result)
+        self.tool_output.delete("1.0", tk.END)
+        self.tool_output.insert(tk.END, answer_title + llm_result)
 
     async def make_schedule(self):
         #, tasks, system_prompt, user_prompt
@@ -420,8 +432,8 @@ class StickyNote:
         note_template = Template(self._note_text)
         new_text = note_template.render(note_dict)
         logger.info(f"new_text={new_text}")
-        self.text_area.delete("1.0", tk.END)
-        self.text_area.insert(tk.END, new_text)
+        self.tool_output.delete("1.0", tk.END)
+        self.tool_output.insert(tk.END, new_text)
 
     def add_top_menu(self):
         # Create a top menu bar
@@ -565,8 +577,8 @@ class StickyNote:
         execute_button = tk.Button(self.button_frame, text="Execute", bd='2', fg="green", command=self.execute_command)
         execute_button.grid(row=0, column=4, padx=2)
 
-        aigc_button = tk.Button(self.button_frame, text="AIGC", bd='2', fg="red", command=self.show_aigc_dialog)
-        aigc_button.grid(row=0, column=5, padx=2)
+        tool_button = tk.Button(self.button_frame, text="Tool", bd='2', fg="red", command=self.show_tool_dialog)
+        tool_button.grid(row=0, column=5, padx=2)
 
         quit_button = tk.Button(self.button_frame, text="Quit", bd='2', fg="black", command=self.quit_app)
         quit_button.grid(row=0, column=6, padx=2)

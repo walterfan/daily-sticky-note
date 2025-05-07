@@ -130,5 +130,5 @@ if __name__ == "__main__":
     logger.info(f"llm_config={llm_config}")
     if llm_config.api_key:
         llm_service = get_llm_service_instance(llm_config, "./etc/prompt_template.yaml")
-        resp = asyncio.run(llm_service.ask("You are a helpful assistant.", "Hello, how are you?"))
+        resp = asyncio.run(llm_service.ask("You are a helpful assistant.", "Hello, please  tell me a joke"))
         logger.info(resp)

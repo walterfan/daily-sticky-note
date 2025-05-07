@@ -30,8 +30,6 @@ config:
     learn domain knowledge, 2, 2, 120, {{ tomorrow }}
 
 llm:
-  base_url: https://api.deepseek.com
-  model: deepseek-chat
   stream: false
   max_token: 4096
   temperature: 1.0
