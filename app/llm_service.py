@@ -10,8 +10,7 @@ sys.path.append(os.path.dirname(CURRENT_DIR))
 import asyncio
 from async_llm_client import AsyncLlmClient, str2bool
 from yaml_config import YamlConfig
-
-from loguru import logger
+from common_util import logger, task_csv_to_json
 
 def list2str(l: list[str]) -> str:
     rs = ""
@@ -79,6 +78,9 @@ class LlmService:
     def get_prompt_templates(self):
         return self._prompt_templates
 
+    def get_prompt_template(self, prompt_name):
+        return self._prompt_templates.get_prompt_tpl(prompt_name)
+
     def get_default_system_prompt(self):
         return self._prompt_templates.get_prompt_tpl("system_prompt")
 
@@ -89,6 +91,11 @@ class LlmService:
         return rendered_str
 
     def build_prompt(self, data_dict: dict, user_prompt_tpl: str) -> str:
+        if not data_dict:
+            return user_prompt_tpl
+        # if dict's value is None or TBD , return user_prompt_tpl directly
+        if any(value is None or value == "TBD" for value in data_dict.values()):
+            return user_prompt_tpl
         template = Template(user_prompt_tpl)
         rendered_str = template.render(data_dict)
         return rendered_str
@@ -113,7 +120,13 @@ class LlmService:
         response_json = json.loads(response)
         return response_json
 
-
+    async def ask_as_resp_stream(self, system_prompt, user_prompt, is_print=False):
+        if is_print:
+            async for chunk in self._llm_client.get_response_stream(system_prompt, user_prompt):
+                print(chunk, end="", flush=True)
+        else:
+            # Remove the 'await' here since we want to return the coroutine object
+            return self._llm_client.get_response_stream(system_prompt, user_prompt)
 g_llm_service = None
 
 def get_llm_service_instance(llm_config: LlmConfig, prompt_config_file: str = None) -> LlmService:
@@ -124,11 +137,42 @@ def get_llm_service_instance(llm_config: LlmConfig, prompt_config_file: str = No
 
 if __name__ == "__main__":
     import dotenv
+    import argparse
+    import datetime
+    # Load environment variables
     dotenv.load_dotenv()
-    config = YamlConfig("./etc/sticky_note.yaml")
+
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Process system and user prompts.")
+    parser.add_argument("-s", "--system_message", type=str, help="System message for LLM")
+    parser.add_argument("-u", "--user_message", type=str, help="User message for LLM")
+    parser.add_argument("-f", "--config_file", dest='config_file', default="../etc/sticky_note.yaml", type=str, help="config_file")
+    parser.add_argument("-p", "--template_file", dest='template_file', default="../etc/prompt_template.yaml", type=str, help="config_file")
+    parser.add_argument("-t", "--template_name", type=str, dest='template_name', default="arrange_calendar", help="prompt template name")
+    args = parser.parse_args()
+
+    config = YamlConfig(args.config_file)
     llm_config = read_llm_config(config)
+    llm_config.stream = True
     logger.info(f"llm_config={llm_config}")
+
     if llm_config.api_key:
-        llm_service = get_llm_service_instance(llm_config, "./etc/prompt_template.yaml")
-        resp = asyncio.run(llm_service.ask("You are a helpful assistant.", "Hello, please  tell me a joke"))
-        logger.info(resp)
+        llm_service = get_llm_service_instance(llm_config, args.template_file)
+        prompt_tpl = llm_service.get_prompt_template(args.template_name)
+        if prompt_tpl is None:
+            logger.error(f"prompt_tpl {prompt_tpl} is not found")
+            sys.exit(1)
+        today = datetime.datetime.now()
+        today_str = today.strftime("%Y-%m-%d")
+        tomorrow = today + datetime.timedelta(days = 1)
+        tomorrow_str = tomorrow.strftime('%Y-%m-%d')
+        data_dict = {
+            "title": f"schedule of {today_str}",
+            "today": today_str,
+            "tomorrow": tomorrow_str,
+            "tasks": task_csv_to_json(config.get_config_item_2("config", "tasks"))
+        }
+        template = Template(prompt_tpl['user_prompt'])
+        rendered_str = template.render(data_dict)
+        print(prompt_tpl)
+        asyncio.run(llm_service.ask_as_resp_stream(prompt_tpl.get("system_prompt"), rendered_str, True))

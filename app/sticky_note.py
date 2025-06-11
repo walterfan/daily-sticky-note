@@ -283,6 +283,11 @@ class StickyNote:
         self._started = False
         self.set_time(0, self._tomato_min, 0)
 
+    def _break(self):
+        self._started = False
+        self.set_time(0, 5, 0)
+        self.start()
+
     def show_tool_dialog(self):
             # Create a new top-level window
             dialog = tk.Toplevel(self._root)
@@ -323,16 +328,10 @@ class StickyNote:
 
             # Create an entry for hint message
 
-            hint_text = tk.Text(dialog, height=4, width=65, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
+            hint_text = tk.Text(dialog, height=8, width=65, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
             hint_text.pack(pady=5)
             hint_text.delete("1.0", tk.END)
             hint_text.insert(tk.END, "Please select a prompt template from the list above.")
-
-            # Create an entry for output message
-            self.tool_output = tk.Text(dialog, height=4, width=65, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
-            self.tool_output.pack(pady=5)
-            self.tool_output.delete("1.0", tk.END)
-            self.tool_output.insert(tk.END, "Output will be shown here.")
 
             # Create a Scrollbar for the Text widget
             hint_scrollbar = tk.Scrollbar(dialog, orient=tk.VERTICAL, command=hint_text.yview)
@@ -344,20 +343,22 @@ class StickyNote:
 
             def on_listbox_select(event):
                 selected_index = listbox.curselection()
-                selected_item = listbox.get(selected_index)
-
-                prompt = prompt_templates.get_prompt_tpl(selected_item)
-                prompt_tpl = f"{prompt.get('system_prompt', '')}.\n{prompt.get('user_prompt', '')}"
-                #logger.info(f"Selected item: {selected_index}, {prompt_tpl}")
-                prompt_text = self._llm_service.build_prompt(prompt.get("variables", ""), prompt_tpl)
-                hint_text.delete("1.0", tk.END)
-                hint_text.insert(tk.END, prompt_text)
+                if selected_index:  # Ensure a valid selection
+                    selected_item = listbox.get(selected_index)
+                    prompt = prompt_templates.get_prompt_tpl(selected_item)
+                    prompt_tpl = f"{prompt.get('system_prompt', '')}.\n{prompt.get('user_prompt', '')}"
+                    prompt_text = self._llm_service.build_prompt(prompt.get("variables", ""), prompt_tpl)
+                    hint_text.delete("1.0", tk.END)
+                    hint_text.insert(tk.END, prompt_text + "\n\n")
+                else:
+                    hint_text.delete("1.0", tk.END)
+                    hint_text.insert(tk.END, "No prompt template selected.")
 
             # Bind the selection event to the function
             listbox.bind('<<ListboxSelect>>', on_listbox_select)
 
 
-            def on_yes():
+            def on_execute():
                 selected_index = listbox.curselection()
                 if selected_index:
                     selected_item = listbox.get(selected_index)
@@ -369,43 +370,52 @@ class StickyNote:
                     if self._template_name == "diary":
                         if selected_item == "arrange_calendar":
                             asyncio.run_coroutine_threadsafe(self.make_schedule(), self._loop)
-                        if selected_item == "generate_uuid":
-                            self.tool_output.delete("1.0", tk.END)
-                            self.tool_output.insert(tk.END, str(uuid.uuid4()))
                         else:
-                            logger.info("will add llm...")
                             asyncio.run_coroutine_threadsafe(self.ask_llm(hint_message), self._loop)
 
                 #dialog.destroy()
 
-            def on_cancel():
+            def on_close():
                 dialog.destroy()
 
             # Create Yes and Cancel buttons
             button_frame = tk.Frame(dialog)
             button_frame.pack(pady=10)
-            yes_button = tk.Button(button_frame, text="Perform", command=on_yes)
+            yes_button = tk.Button(button_frame, text="Execute", command=on_execute)
             yes_button.pack(side=tk.LEFT, padx=5)
-            cancel_button = tk.Button(button_frame, text="Exit", command=on_cancel)
+            cancel_button = tk.Button(button_frame, text="Close", command=on_close)
             cancel_button.pack(side=tk.LEFT, padx=5)
 
+    async def stream_llm_response(self, system_prompt: str, user_prompt: str):
+        """Stream LLM response to text_area in real-time."""
+        full_response = ""
+        self.text_area.insert(tk.END, "\n\n## Streaming Response:\n")
+
+        # Get the stream generator first
+        response_stream = await self._llm_service.ask_as_resp_stream(system_prompt, user_prompt)
+
+        # Then iterate through the stream
+        async for chunk in response_stream:
+            full_response += chunk
+            self.text_area.insert(tk.END, chunk)
+            self.text_area.see(tk.END)  # Auto-scroll to end
+            self.text_area.update()  # Force UI update
+
+        return full_response
     async def ask_llm(self, content):
         prompt_lines = content.split('\n')
         system_prompt = "You are a helpful assistant"
         user_prompt = content
+
         if len(prompt_lines) > 1:
             first_line = "".join(prompt_lines[:1])
             if "你是" in first_line or "you are" in first_line.lower():
                 system_prompt = "".join(prompt_lines[:1])
                 user_prompt = '\n'.join(prompt_lines[1:])
 
-        logger.info(f"ask llm: {system_prompt}, {user_prompt}")
-        llm_result = await self._llm_service.ask(system_prompt, user_prompt)
-        answer_title = f"\n\n## {'-'*20} Answer {'-'*20}\n\n"
-        logger.info(f"llm_result={llm_result}")
-        #self.text_area.insert(tk.END, answer_title + llm_result)
-        self.tool_output.delete("1.0", tk.END)
-        self.tool_output.insert(tk.END, answer_title + llm_result)
+        logger.info(f"streaming llm response: {system_prompt}, {user_prompt}")
+        await self.stream_llm_response(system_prompt, user_prompt)
+
 
     async def make_schedule(self):
         #, tasks, system_prompt, user_prompt
@@ -426,14 +436,9 @@ class StickyNote:
         rendered_str = template.render(data_dict)
         llm_result = await self._llm_service.ask(prompt['system_prompt'], rendered_str)
 
-        note_dict = {
-            "content": extract_markdown_text(llm_result)
-        }
-        note_template = Template(self._note_text)
-        new_text = note_template.render(note_dict)
-        logger.info(f"new_text={new_text}")
-        self.tool_output.delete("1.0", tk.END)
-        self.tool_output.insert(tk.END, new_text)
+        calendar_content = extract_markdown_text(llm_result)
+        logger.info(f"calendar_content={calendar_content}")
+        self.text_area.insert(tk.END, f"\n\n## calendar\n{calendar_content}")
 
     def add_top_menu(self):
         # Create a top menu bar
@@ -507,19 +512,22 @@ class StickyNote:
         self.file_name_frame.grid(row=1, column=0, padx=10, pady=2, sticky="ew")
 
         self.file_name_label = tk.Label(self.file_name_frame, text="File name: ")
-        self.file_name_label.grid(row=0, column=0, padx=5, pady=2, sticky="w")
-        self.file_name_entry = tk.Entry(self.file_name_frame, width=20)
-        self.file_name_entry.grid(row=0, column=1, padx=5, pady=2)
+        self.file_name_label.grid(row=0, column=0, padx=3, pady=2, sticky="w")
+        self.file_name_entry = tk.Entry(self.file_name_frame, width=16)
+        self.file_name_entry.grid(row=0, column=1, padx=1, pady=2)
         self.file_name_entry.insert(tk.END, self.default_filename)
 
-        start_button = tk.Button(self.file_name_frame, text="start",  bd='5', fg="green", command=self.start)
-        start_button.grid(row=0, column=3, padx=3)
+        start_button = tk.Button(self.file_name_frame, text="start",  bd='2', fg="green", command=self.start)
+        start_button.grid(row=0, column=3, padx=1)
 
-        stop_button = tk.Button(self.file_name_frame, text="stop",  bd='5', fg="blue",command=self.pause)
-        stop_button.grid(row=0, column=4, padx=3)
+        stop_button = tk.Button(self.file_name_frame, text="stop",  bd='2', fg="blue",command=self.pause)
+        stop_button.grid(row=0, column=4, padx=1)
 
-        reset_button = tk.Button(self.file_name_frame, text="reset",  bd='5', fg="red", command=self.reset)
-        reset_button.grid(row=0, column=5, padx=3)
+        reset_button = tk.Button(self.file_name_frame, text="reset",  bd='2', fg="red", command=self.reset)
+        reset_button.grid(row=0, column=5, padx=1)
+
+        break_button = tk.Button(self.file_name_frame, text="break",  bd='2', fg="green", command=self._break)
+        break_button.grid(row=0, column=6, padx=1)
 
         # row 2: Text area to write notes (adjustable size)
         self.text_area = tk.Text(self._root, height=15, width=60, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('MesloCommit Mono', 14), undo=True)

@@ -1,5 +1,8 @@
 generate_uuid:
   desc: "Generate uuid"
+  system_prompt: You are a professional string generator and converter.
+  user_prompt: |
+    Please generate 10 UUIDs in UUID4 format.
 translate_en:
   desc: translate text
   system_prompt: You are a professional translator.
@@ -53,8 +56,8 @@ translate_cn:
   user_prompt: |
     请将以下文本从{{ source_language }}翻译为{{ target_language }}，并保留原文的语气和含义。
   variables:
-    source_language: 英语
-    target_language: 中文
+    source_language: 中文
+    target_language: 英语
   example: |
     请将以下文本从英语翻译为中文，并保留原文的语气和含义："How are you?"
   tags: 翻译
@@ -345,6 +348,63 @@ write_script:
     You are an expert in Python and data science, please write a script for data cleaning by Pandas that is to prepare data for machine learning models
   tags: code
 
+write_podcast:
+  desc:  write podcast
+  system_prompt: "你是一个技术科普作家和资深的内容创作者"
+  user_prompt: |
+      我是一个重度播客爱好者, 也许是内容创作者们有点懈怠了, 也许是我的口味变刁了, 最近越来越感觉找不到爱听的播客了, 或者说感觉对我有所收获的播客内容在太少了.
+
+      于是我就想自己来做一个符合自己喜好的播客, 大概的内容如下
+
+      - 每天评论 1 条社会热点新闻
+      - 每天推荐 1 个 github 热点项目
+      - 每天推荐 1 个软件开发与 AI 应用方面的最佳实践
+      - 每天练习 1 个 leetcode 算法题, 使用 java和 go 语言来实现, 并做一个详细解释
+      - 每天朗读 10 句英语金句
+
+      请你根据这两天的新闻, 技术网站上的动向, 以及软件开发的常用算法和设计模式, 编写符合以上内容的播客文稿, 这样我就可以根据这个文稿来创作我的播客了
+      请编写具体的内容, 不要留有占位符
+
+write_blog:
+  desc:  write blog
+  system_prompt: 你是一个技术科普作家和资深的内容创作者, 行文风趣幽默, 发人深省
+  user_prompt: |
+      我有一个技术博客, 用来分享自己在技术上的想法和心得, 请根据如下模板为我生成今天的博客内容, 替换掉模板中的 "{{ ... }}" 与 "..." 字符串
+      ---------------
+      ```markdown
+      # {{ title }}
+
+      ##  “{{ idea }}”
+      ### what
+      ...
+      ### why
+      ...
+      ### how
+      ...
+      ### example
+      ...
+      ### summary
+      ...
+      ### reference
+      ...
+
+      ## Daily recommendation of 1 github hot project
+      ...
+      ## Daily recommendation of 1 best practice in software development and AI applications
+      ...
+      ## Daily practice of 1 common library by golang
+      ...
+      ## Daily practice of 1 classic design pattern  by golang
+      ...
+      ## Daily recitation of 10 English quotes
+      ...
+      ```
+      请使用 Markdown 格式输出中文的博客内容
+  variables:
+    language: golang
+    title: TBD
+    idea: TBD
+
 arrange_calendar:
   desc: arrange calendar
   system_prompt: 你是一个效率提升与项目管理方面的专家
@@ -400,5 +460,54 @@ arrange_calendar:
   variables:
     today: TBD
     tasks: TBD
+  example: TBD
+  tags: efficiency
+
+write_prompt:
+  desc: write prompt
+  system_prompt: You are an expert Prompt Writer for Large Language Models.
+  user_prompt: |
+    Your goal is to improve the prompt given below for {task} :
+    --------------------
+
+    Prompt: {lazy_prompt}
+
+    --------------------
+
+    Here are several tips on writing great prompts:
+
+    -------
+
+    Start the prompt by stating that it is an expert in the subject.
+
+    Put instructions at the beginning of the prompt and use ### or to separate the instruction and context
+
+    Be specific, descriptive and as detailed as possible about the desired context, outcome, length, format, style, etc
+
+    ---------
+
+    Here's an example of a great prompt:
+
+      As a master YouTube content creator, develop an engaging script that revolves around the theme of "Exploring Ancient Ruins."
+
+      Your script should encompass exciting discoveries, historical insights, and a sense of adventure.
+
+      Include a mix of on-screen narration, engaging visuals, and possibly interactions with co-hosts or experts.
+
+      The script should ideally result in a video of around 10-15 minutes, providing viewers with a captivating journey through the secrets of the past.
+
+      Example:
+
+      "Welcome back, fellow history enthusiasts, to our channel! Today, we embark on a thrilling expedition..."
+
+    -----
+
+    Now, improve the prompt.
+
+    IMPROVED PROMPT:
+
+  variables:
+    task: TBD
+    lazy_prompt: TBD
   example: TBD
   tags: efficiency
