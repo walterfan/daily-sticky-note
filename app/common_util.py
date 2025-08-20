@@ -1,10 +1,12 @@
 
 import re
+import os
 import time
 import json
 from datetime import datetime
 from loguru import logger
 import webbrowser
+import jinja2
 
 class LazyLlmError(Exception):
     def __init__(self, reason, original_exception):
@@ -62,6 +64,10 @@ def extract_markdown_text(text):
     match = re.search(r"```markdown\n(.*?)\n```", text, re.DOTALL)
     return match.group(1) if match else None
 
+
+def render_jinja2_template(template_str: str, **kwargs):
+    template = jinja2.Template(template_str)
+    return template.render(**kwargs)
 
 def open_link(url):
     """

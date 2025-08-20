@@ -148,7 +148,7 @@ if __name__ == "__main__":
     parser.add_argument("-u", "--user_message", type=str, help="User message for LLM")
     parser.add_argument("-f", "--config_file", dest='config_file', default="../etc/sticky_note.yaml", type=str, help="config_file")
     parser.add_argument("-p", "--template_file", dest='template_file', default="../etc/prompt_template.yaml", type=str, help="config_file")
-    parser.add_argument("-t", "--template_name", type=str, dest='template_name', default="arrange_calendar", help="prompt template name")
+    parser.add_argument("-t", "--template_name", type=str, dest='template_name', default="generate_calendar", help="prompt template name")
     args = parser.parse_args()
 
     config = YamlConfig(args.config_file)

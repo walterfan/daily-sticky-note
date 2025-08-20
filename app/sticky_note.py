@@ -3,15 +3,14 @@
 import platform
 import subprocess
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 import os, sys
 import datetime
 import argparse
 import asyncio
-import uuid
 from jinja2 import Template
 from yaml_config import YamlConfig
-from common_util import task_csv_to_json, extract_markdown_text, open_link
+from common_util import task_csv_to_json, extract_markdown_text, open_link, render_jinja2_template
 from llm_service import get_llm_service_instance, read_llm_config
 from loguru import logger
 import dotenv
@@ -176,9 +175,31 @@ class StickyNote:
             command = self.command_dict[selected_command]
             command_shell = command.get("shell")
             command_new_window = command.get("new_window")
+            command_function = command.get("function")
             os_type = platform.system()
-            logger.info(f"Executing command: {command} on {os_type}")
-            if command_new_window:
+            logger.info(f"Executing command: {command} on {platform.system()}")
+            if command_function:
+                                # call function
+                logger.info(f"Calling function: {command_function}")
+                if command_function == "generate_blog":
+                    # pop up a dialog to ask user input the idea of the blog
+                    title = f"blog at {datetime.datetime.now().strftime('%Y-%m-%d')}"
+
+                    subject = self.show_multi_line_input_dialog("Blog Subject Input",
+                     "Please input the subject of the blog",
+                     "rust programming from zero to hero")
+                    if title and subject:
+                        asyncio.run_coroutine_threadsafe(self.generate_blog(title, subject), self._loop)
+                elif command_function == "generate_calendar":
+                    # pop up a dialog to ask user input the idea of the blog
+                    today = datetime.datetime.now().strftime('%Y-%m-%d')
+
+                    tasks = self.show_multi_line_input_dialog("Tasks Input",
+                        "Please input tasks\nname, priority(1~4), difficulty(1~3), duration(min), deadline(2025-02-25)",
+                        "task 1, 1, 1, 180, 2025-08-23\ntask 2, 2, 2, 120, 2025-08-24\ntask 3, 3, 3, 60, 2025-08-25"                        )
+                    if tasks:
+                        asyncio.run_coroutine_threadsafe(self.generate_calendar(today, tasks), self._loop)
+            elif command_new_window:
                 if os_type == 'Windows':
                     subprocess.Popen(['start', 'cmd', '/k', command_shell], shell=True)
                 elif os_type == 'Darwin':
@@ -322,65 +343,102 @@ class StickyNote:
             prompt_templates = self._llm_service.get_prompt_templates()
 
             items = sorted(prompt_templates.get_prompts())
-            for item in items:
-                listbox.insert(tk.END, item)
+            for i, item in enumerate(items, 1):
+                listbox.insert(tk.END, f"{i}. {item}")
             #listbox.selection_set(0)
 
             # Create an entry for hint message
 
-            hint_text = tk.Text(dialog, height=8, width=65, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
-            hint_text.pack(pady=5)
-            hint_text.delete("1.0", tk.END)
-            hint_text.insert(tk.END, "Please select a prompt template from the list above.")
+            # Create a frame for hint_text and its scrollbar
+            hint_frame = tk.Frame(dialog)
+            hint_frame.pack(pady=5, fill=tk.BOTH, expand=True)
+
+            hint_text = tk.Text(hint_frame, height=8, width=65, wrap=tk.WORD, bg='#9acd32', fg='#333333', font=('Arial', 14))
+            hint_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
             # Create a Scrollbar for the Text widget
-            hint_scrollbar = tk.Scrollbar(dialog, orient=tk.VERTICAL, command=hint_text.yview)
+            hint_scrollbar = tk.Scrollbar(hint_frame, orient=tk.VERTICAL, command=hint_text.yview)
             hint_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
             # Configure the Text widget to use the Scrollbar
             hint_text.config(yscrollcommand=hint_scrollbar.set)
+            
+            hint_text.delete("1.0", tk.END)
+            hint_text.insert(tk.END, "Please select a prompt template from the list above.")
 
+            # Track if user has manually edited the hint_text
+            user_edited_hint = False
+
+            def on_hint_text_modified(event):
+                nonlocal user_edited_hint
+                user_edited_hint = True
 
             def on_listbox_select(event):
+                nonlocal user_edited_hint
                 selected_index = listbox.curselection()
                 if selected_index:  # Ensure a valid selection
-                    selected_item = listbox.get(selected_index)
+                    selected_display_item = listbox.get(selected_index)
+                    # Extract original item name by removing serial number prefix (e.g., "1. item_name" -> "item_name")
+                    selected_item = selected_display_item.split('. ', 1)[1] if '. ' in selected_display_item else selected_display_item
                     prompt = prompt_templates.get_prompt_tpl(selected_item)
                     prompt_tpl = f"{prompt.get('system_prompt', '')}.\n{prompt.get('user_prompt', '')}"
                     prompt_text = self._llm_service.build_prompt(prompt.get("variables", ""), prompt_tpl)
-                    hint_text.delete("1.0", tk.END)
-                    hint_text.insert(tk.END, prompt_text + "\n\n")
+                    
+                    # Only auto-update if user hasn't manually edited the text
+                    if not user_edited_hint:
+                        hint_text.delete("1.0", tk.END)
+                        hint_text.insert(tk.END, prompt_text + "\n\n")
                 else:
-                    hint_text.delete("1.0", tk.END)
-                    hint_text.insert(tk.END, "No prompt template selected.")
+                    if not user_edited_hint:
+                        hint_text.delete("1.0", tk.END)
+                        hint_text.insert(tk.END, "No prompt template selected.")
 
-            # Bind the selection event to the function
+            # Bind events
             listbox.bind('<<ListboxSelect>>', on_listbox_select)
+            hint_text.bind('<Key>', on_hint_text_modified)
+            hint_text.bind('<Button-1>', on_hint_text_modified)
 
 
             def on_execute():
                 selected_index = listbox.curselection()
                 if selected_index:
-                    selected_item = listbox.get(selected_index)
+                    selected_display_item = listbox.get(selected_index)
+                    # Extract original item name by removing serial number prefix
+                    selected_item = selected_display_item.split('. ', 1)[1] if '. ' in selected_display_item else selected_display_item
                     hint_message = hint_text.get("1.0", tk.END).strip()
 
                     prompt = prompt_templates.get_prompt_tpl(selected_item)
                     logger.info(f"Selected item: {selected_item}, Hint message: {hint_message}")
-                    #  add your AIGC logic here
-                    if self._template_name == "diary":
-                        if selected_item == "arrange_calendar":
-                            asyncio.run_coroutine_threadsafe(self.make_schedule(), self._loop)
-                        else:
-                            asyncio.run_coroutine_threadsafe(self.ask_llm(hint_message), self._loop)
+                    asyncio.run_coroutine_threadsafe(self.ask_llm(hint_message), self._loop)
 
                 #dialog.destroy()
 
             def on_close():
                 dialog.destroy()
 
-            # Create Yes and Cancel buttons
+            def on_load_template():
+                nonlocal user_edited_hint
+                selected_index = listbox.curselection()
+                if selected_index:
+                    selected_display_item = listbox.get(selected_index)
+                    # Extract original item name by removing serial number prefix
+                    selected_item = selected_display_item.split('. ', 1)[1] if '. ' in selected_display_item else selected_display_item
+                    prompt = prompt_templates.get_prompt_tpl(selected_item)
+                    prompt_tpl = f"{prompt.get('system_prompt', '')}.\n{prompt.get('user_prompt', '')}"
+                    prompt_text = self._llm_service.build_prompt(prompt.get("variables", ""), prompt_tpl)
+                    
+                    # Force load the template even if user has edited
+                    hint_text.delete("1.0", tk.END)
+                    hint_text.insert(tk.END, prompt_text + "\n\n")
+                    user_edited_hint = False  # Reset the flag
+                else:
+                    messagebox.showwarning("No Selection", "Please select a prompt template first.")
+
+            # Create buttons
             button_frame = tk.Frame(dialog)
             button_frame.pack(pady=10)
+            load_template_button = tk.Button(button_frame, text="Load Template", command=on_load_template)
+            load_template_button.pack(side=tk.LEFT, padx=5)
             yes_button = tk.Button(button_frame, text="Execute", command=on_execute)
             yes_button.pack(side=tk.LEFT, padx=5)
             cancel_button = tk.Button(button_frame, text="Close", command=on_close)
@@ -402,6 +460,29 @@ class StickyNote:
             self.text_area.update()  # Force UI update
 
         return full_response
+
+    async def stream_to_text_area(self, header_text, system_prompt, user_prompt):
+        """
+        Common function to stream LLM response to text_area with header.
+        
+        Args:
+            header_text (str): Header text to insert before the response
+            system_prompt (str): System prompt for LLM
+            user_prompt (str): User prompt for LLM
+        """
+        full_response = ""
+        self.text_area.insert(tk.END, f"\n\n## {header_text}\n")
+        response_stream = await self._llm_service.ask_as_resp_stream(system_prompt, user_prompt)
+
+        # Then iterate through the stream
+        async for chunk in response_stream:
+            full_response += chunk
+            self.text_area.insert(tk.END, chunk)
+            self.text_area.see(tk.END)  # Auto-scroll to end
+            self.text_area.update()  # Force UI update
+        
+        return full_response
+
     async def ask_llm(self, content):
         prompt_lines = content.split('\n')
         system_prompt = "You are a helpful assistant"
@@ -416,29 +497,26 @@ class StickyNote:
         logger.info(f"streaming llm response: {system_prompt}, {user_prompt}")
         await self.stream_llm_response(system_prompt, user_prompt)
 
+    async def generate_blog(self, title, subject):
+        prompt = self._llm_service.get_prompt_templates().get_prompt_tpl('generate_blog')
 
-    async def make_schedule(self):
-        #, tasks, system_prompt, user_prompt
-        tasks = self._config.get_config_item_2("config", "tasks")
-        prompt = self._llm_service.get_prompt_templates().get_prompt_tpl('arrange_calendar')
-        today = datetime.datetime.now()
-        today_str = today.strftime('%Y-%m-%d')
-        tomorrow = today + datetime.timedelta(days = 1)
-        tomorrow_str = tomorrow.strftime('%Y-%m-%d')
+        # replace the {{ title }} and {{ subject }} in the user_prompt as jinja2 template
+        user_prompt = render_jinja2_template(prompt['user_prompt'], title=title, subject=subject)
+        logger.info(f"generate_blog user_prompt={user_prompt}")
+        
+        # Use the common streaming function
+        await self.stream_to_text_area("blog", prompt['system_prompt'], user_prompt)
 
-        data_dict = {
-            "title": f"schedule of {today_str}",
-            "today": today_str,
-            "tomorrow": tomorrow_str,
-            "tasks": task_csv_to_json(tasks)
-        }
-        template = Template(prompt['user_prompt'])
-        rendered_str = template.render(data_dict)
-        llm_result = await self._llm_service.ask(prompt['system_prompt'], rendered_str)
+    async def generate_calendar(self, today, tasks):
+        prompt = self._llm_service.get_prompt_templates().get_prompt_tpl('generate_calendar')
 
-        calendar_content = extract_markdown_text(llm_result)
-        logger.info(f"calendar_content={calendar_content}")
-        self.text_area.insert(tk.END, f"\n\n## calendar\n{calendar_content}")
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        user_prompt = render_jinja2_template(prompt['user_prompt'], today=today, tasks=tasks)
+        logger.info(f"generate_calendar user_prompt={user_prompt}")
+
+        # Use the common streaming function
+        await self.stream_to_text_area("calendar", prompt['system_prompt'], user_prompt)
+
 
     def add_top_menu(self):
         # Create a top menu bar
@@ -489,8 +567,12 @@ class StickyNote:
 
         self._root.grid_rowconfigure(2, weight=1)
         self._root.grid_columnconfigure(0, weight=1)
+        self._root.grid_columnconfigure(1, weight=0)  # Scrollbar column should not expand
 
         self.adjust_location()
+
+        # Make the window resizable
+        self._root.resizable(True, True)
 
         # row 0: Template selection combobox
         self.template_frame = tk.Frame(self._root)
@@ -621,6 +703,90 @@ class StickyNote:
     def _run_async_tasks(self):
         self._loop.run_until_complete(asyncio.sleep(0))
         self._root.after(100, self._run_async_tasks)
+
+    def show_multi_line_input_dialog(self, title, prompt, default_text=""):
+        """
+        Show a custom multi-line input dialog.
+        
+        Args:
+            title (str): Dialog window title
+            prompt (str): Label text to display above the input area
+            default_text (str): Default text to pre-fill in the input area
+            
+        Returns:
+            str: User input text, or None if cancelled
+        """
+        # Create a custom multi-line input dialog (following show_tool_dialog pattern)
+        dialog = tk.Toplevel(self._root)
+        dialog.title(title)
+        dialog.geometry("500x300")
+        
+        # Center the dialog on screen (like show_tool_dialog does)
+        screen_width = self._root.winfo_screenwidth()
+        screen_height = self._root.winfo_screenheight()
+        x = (screen_width - 500) // 2
+        y = (screen_height - 300) // 2
+        dialog.geometry(f"500x300+{x}+{y}")
+        
+        # Simple styling without aggressive focus management
+        dialog.configure(bg='#f0f0f0')
+        
+        label = tk.Label(dialog, text=prompt, bg='#f0f0f0', font=('Arial', 10, 'bold'))
+        label.pack(pady=(20, 10))
+        
+        # Create a multi-line text area with scrollbar
+        text_frame = tk.Frame(dialog, bg='#f0f0f0')
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        text_area = tk.Text(text_frame, height=10, width=60, wrap=tk.WORD, 
+                           bg='white', relief='sunken', bd=2)
+        scrollbar = tk.Scrollbar(text_frame, command=text_area.yview)
+        text_area.config(yscrollcommand=scrollbar.set)
+        
+        text_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Insert default text if provided
+        if default_text:
+            text_area.insert("1.0", default_text)
+        
+        # Simple focus management - just set focus once
+        text_area.focus_set()
+        
+        result = [None]  # Use list to store result
+        
+        def on_ok():
+            result[0] = text_area.get("1.0", tk.END).strip()
+            dialog.destroy()
+        
+        def on_cancel():
+            dialog.destroy()
+        
+        def on_escape(event):
+            # Allow Escape key to close dialog
+            on_cancel()
+        
+        # Bind escape key
+        dialog.bind('<Escape>', on_escape)
+        
+        button_frame = tk.Frame(dialog, bg='#f0f0f0')
+        button_frame.pack(pady=20)
+        
+        ok_button = tk.Button(button_frame, text="OK", command=on_ok,relief='raised', bd=2)
+        ok_button.pack(side=tk.LEFT, padx=10)
+        
+        cancel_button = tk.Button(button_frame, text="Cancel", command=on_cancel, relief='raised', bd=2)
+        cancel_button.pack(side=tk.LEFT, padx=10)
+
+        # Add a help text at the bottom
+        help_label = tk.Label(dialog, text="Tip: Press Enter to submit, Ctrl+Enter for new line, ESC to cancel", 
+                             bg='#f0f0f0', fg='#666666', font=('Arial', 8), justify=tk.CENTER)
+        help_label.pack(pady=(0, 10))
+        
+        # Wait for dialog to close
+        dialog.wait_window()
+        
+        return result[0]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Daily Sticky Note Application")
